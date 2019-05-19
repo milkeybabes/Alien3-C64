@@ -1,0 +1,123 @@
+FLAGS	EQU	&DD00
+DATA	EQU	&DD01
+IN	EQU	4
+OUT	EQU	8
+
+PDSSETUP	LDA	#&3B
+	STA	&DD02		;Setup flags port.
+	LDA	#0
+	STA	&DD03		;Data port setup for reading.
+POWER	RTS
+
+PDSMONITOR	LDA	FLAGS
+	EOR	!STROBE+1
+	AND	#IN		;Get the command byte.
+	BNE	POWER
+	LDX	DATA		;Leave command byte in X register.
+	LDA	FLAGS
+	AND	#255-IN-OUT
+	ORA	!STROBE+1
+	STA	FLAGS
+	LDA	!STROBE+1
+	EOR	#IN+OUT
+	STA	!STROBE+1
+	CPX	#179
+	BEQ	PDSMONITOR
+!NOT187	CPX	#180
+	BNE	!NOT180
+	JSR	!GETBYT
+	STA	!ADDR+2		;This is the start address.
+	JSR	!GETBYT
+	TAY
+	JSR	!GETBYT
+	STA	!COUNT1+1
+	JSR	!GETBYT
+	STA	!COUNT0+1		;This is the length of code.
+!COUNT0	LDA	#1
+	BNE	!0
+!COUNT1	LDA	#1
+	BEQ	!5		;Decrement counter.
+ 	DEC	!COUNT1+1
+!0	DEC	!COUNT0+1
+	JSR	!GETBYT
+!ADDR	STA	&100,Y		;Get and store byte.
+	INY
+	BNE	!COUNT0
+	INC	!ADDR+2		;Inc position in memory.
+	JMP	!COUNT0
+
+!NOT180	CPX	#182
+	BNE	!5
+	JSR	!GETBYT
+	STA	!SADDR+2		;This is the start address.
+	JSR	!GETBYT
+	TAY
+	JSR	!GETBYT
+	STA	!SCOUNT1+1
+	JSR	!GETBYT
+	STA	!SCOUNT0+1		;This is the length of code.
+!UPLOAD	JSR	!PORTOUT		;Set up ports for output.
+!SCOUNT0	LDA	#1
+	BNE	!1
+!SCOUNT1	LDA	#1
+	BEQ	!OUT		;Decrement counter.
+	DEC	!SCOUNT1+1
+!1	DEC	!SCOUNT0+1
+!SADDR	LDA	&100,Y		;Get and send byte.
+	JSR	!SENDBYT
+	INY
+	BNE	!SCOUNT0
+	INC	!SADDR+2		;Inc position in memory.
+	JMP	!SCOUNT0
+!OUT	JMP	!PORTIN		;Set up ports for input again.
+
+!GETBYT	LDA	FLAGS
+!STROBE	EOR	#8		; to start with
+	AND	#IN
+	BNE	!GETBYT
+	LDX	DATA
+	LDA	FLAGS
+	AND	#255-IN-OUT
+	ORA	!STROBE+1
+	STA	FLAGS
+	LDA	!STROBE+1
+	EOR	#IN+OUT
+	STA	!STROBE+1
+	TXA
+!5	RTS
+
+!SENDBYT	STA	DATA
+	LDA	FLAGS
+	AND	#255-IN-OUT
+	ORA	!STROBE+1
+	STA	FLAGS
+	LDA	!STROBE+1
+	EOR	#IN+OUT
+	STA	!STROBE+1
+!2	LDA	FLAGS
+	EOR	!STROBE+1
+	AND	#IN
+	BEQ	!2
+	RTS
+
+!PORTIN	LDA	#0
+	STA	&DD03		;Data port setup for reading.
+	LDA	FLAGS
+	AND	#255-IN-OUT
+	ORA	!STROBE+1
+	STA	FLAGS
+	LDA	!STROBE+1
+	EOR	#OUT
+	STA	!STROBE+1
+	RTS
+
+!PORTOUT	LDA	FLAGS
+	EOR	!STROBE+1		;Wait till pc ready.
+	AND	#IN
+	BNE	!PORTOUT
+	LDA	#255
+	STA	&DD03		;Data ports
+	LDA	!STROBE+1
+	EOR	#IN		;Toggle strobe line.
+	STA	!STROBE+1
+	RTS

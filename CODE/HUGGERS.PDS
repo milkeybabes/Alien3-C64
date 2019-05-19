@@ -1,0 +1,149 @@
+****************************************
+*	EGGS AND FACE HUGGERS	*
+****************************************
+
+DO_EGGS	LDA	ENEMY_DAMAGE,X	; hits left to kill
+;	BNE	!ALIVE
+;	LDA	#&10
+;	JSR	SCOREADD		; give me some points
+;	LDA	#0
+;	STA	ENEMY_TYPE,X
+;	RTS
+
+;!ALIVE	DEC	ENEMY_SPEED,X
+;	BNE	NORMAN
+;	LDA	#10
+;	STA	ENEMY_SPEED,X
+;	LDA	ENEMY_FRAME,X
+;	CLC
+;	ADC	#1
+;	STA	ENEMY_FRAME,X	
+NORMAN	RTS
+
+	; Face huugers sub actions
+	; Jump out of Eggs to floor (then to run)
+	; Run along left/right (with turn frame)
+	; Fall back / struggle to get up & get up (then back to run)
+	; Pounce on ripleys face, suck her off, kill her (when no energy)
+	; Get blown to pices
+
+DO_HUGGERS	LDA	ENEMY_DAMAGE,X	; hits left to kill
+;	BEQ	SMACKED
+;	CPY	#3		; in hit move already
+;	BEQ	ALIVE1
+;	LDA	#0		; reset wack
+;	STA	ENEMY_INDEX,X	; frame index for tables
+;	LDY	#3		; new action
+;	JMP	NEW_ACT1
+	
+;SMACKED	CPY	#4
+;	BEQ	ALIVE1		; in explosion frames then ignore
+;	LDA	#0
+;	STA	ENEMY_INDEX,X	; blow up index
+;	LDY	#1
+;	STY	ENEMY_SPEED,X
+;	LDA	#&10
+;	JSR	SCOREADD		; give me some points
+;	LDY	#4		; sub action blow to shit
+;NEW_ACT1	STY	ENEMY_ACT,X		; do this right away fall through
+;ALIVE1	DEC	ENEMY_SPEED,X	; all have a speed factor
+;	BNE	NORMAN
+;	LDA	HUG_SPEED,Y		; get speed back
+;	STA	ENEMY_SPEED,X
+;	LDA	!TABLELOW,Y
+;	STA	!GOTO+1
+;	LDA	!TABLEHIGH,Y
+;	STA	!GOTO+2
+!GOTO	JMP	&FFFF		; do it
+
+;!TABLELOW	DL	HUG_COME,HUG_RUN,HUG_POUNCE,HUG_HIT,HUG_DIE
+;!TABLEHIGH	DH	HUG_COME,HUG_RUN,HUG_POUNCE,HUG_HIT,HUG_DIE
+;HUG_SPEED	DB	3,3,3,6,4
+
+;HUG_COME	RTS
+
+;HUG_RUN	JSR	SIDE_ENEMY		; hit anything 
+;	BEQ	CH_DIR
+;	LDA	#4		; distance to move
+;	JSR	MOVE_ENEMYX	
+;	LDA	ENEMY_XDIR,X	; get frame
+;	BMI	!LEFT
+;	LDA	#HUG_SPR		; right faceing
+;	NOW
+;!LEFT	LDA	#HUG_SPR+3		; left faceing
+;	CLC
+;	ADC	ENEMY_INDEX,X
+;	STA	ENEMY_FRAME,X
+;	LDA	ENEMY_INDEX,X	; next frame
+;	CLC
+;	ADC	#1
+;	CMP	#3
+;	BCC	!SER
+;	LDA	#0		; reset back	
+;!SER	STA	ENEMY_INDEX,X
+;	RTS
+
+;CH_DIR	LDA	#HUG_SPR+28		; change dir
+;	STA	ENEMY_FRAME,X
+;	LDA	#4		; delay it for a bit
+;	STA	ENEMY_SPEED,X
+;OTHER_DIR	LDA	ENEMY_XDIR,X
+;	EOR	#128
+;	STA	ENEMY_XDIR,X
+;	RTS
+
+	; one hit of hugger fling away
+;HUG_HIT	LDY	ENEMY_INDEX,X
+;	CPY	#HUGG_FTAB2-HUGG_FTAB1; end of table
+;	BEQ	BACK_TO_RUN		; turn and run back
+;	INC	ENEMY_INDEX,X
+;	LDA	ENEMY_XDIR,X	; get frame
+;	BMI	!LEFT
+;	LDA	HUGG_FTAB1,Y	; get frame when moveing right
+;	BNE	GOTT
+;!LEFT	LDA	HUGG_FTAB2,Y	; get frame when moveing left
+;GOTT	STA	ENEMY_FRAME,X
+;	LDA	HUGG_XTAB1,Y
+;	JSR	MOVE_ENEMYX
+;	LDA	HUGG_YTAB1,Y
+;	JSR	ENEMY_MOVEY
+;
+;	LDA	ENEMY_XDIR,X
+;	EOR	#128
+;	STA	ENEMY_XDIR,X
+;	JSR	SIDE_ENEMY		; hit wall then swap direction
+;	BNE	OTHER_DIR		; set back else leave for detection
+;	RTS
+;BACK_TO_RUN
+;	LDA	#2		; to running
+;	STA	ENEMY_ACT,X
+;	LDA	#0
+;	STA	ENEMY_INDEX,X
+;	RTS
+
+	; face hugger frame table
+;HUGG_FTAB1	DB	HUG_SPR+11,HUG_SPR+11,HUG_SPR+11,HUG_SPR+11,HUG_SPR+11
+;HUGG_FTAB2	DB	HUG_SPR+10,HUG_SPR+10,HUG_SPR+10,HUG_SPR+10,HUG_SPR+10
+
+	; face hugger move x table
+;HUGG_XTAB1	;DB	-8,-8,-8,-8,-8,-8,-8,-8,-6,-4,-2,0,0,0,0,0,0
+	; face hugger move y table
+;HUGG_YTAB1	;DB	-3,-3,-2,-2,4,4,2,0,0,0,0,0,0,0,0,0,0
+
+;HUG_POUNCE	RTS
+
+;HUG_DIE	LDA	ENEMY_INDEX,X
+;	CMP	#6		; last frame for explosion	
+;	BCS	SET_AGAIN	
+;	ADC	#HUG_SPR+16		; explode start
+;	STA	ENEMY_FRAME,X
+;	INC	ENEMY_INDEX,X
+;	RTS
+
+;SET_AGAIN	LDA	#0
+;	STA	ENEMY_INDEX,X
+;	LDA	#5		; re generate
+;	STA	ENEMY_DAMAGE,X
+;	LDA	#2		; back to walk test only
+;	STA	ENEMY_ACT,X
+;WISDOM	RTS

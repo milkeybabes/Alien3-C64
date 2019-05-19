@@ -1,0 +1,1454 @@
+HIT_OBJ	EQU	1
+LADDER_OBJ	EQU	2	; ladder anywhere
+LBOT1_OBJ	EQU	3	; bottom of ladder (non	tunnel part)
+LBOT2_OBJ	EQU	4	; bottom of ladder (tunnel section)
+TOP_LADDER	EQU	12	; top	of ladder in duct
+PICK_OBJ	EQU	5	; pickups
+OFF1_OBJ	EQU	6	; get off ladder	point (non tunnel)
+OFF2_OBJ	EQU	7	; get off ladder	point (in tunnel)
+SLOPEL_OBJ	EQU	8	; slope going diag right to left /
+SLOPER_OBJ	EQU	9	; slope going diag left to right \
+;LIFT_OBJ	EQU	10	; lift	platform
+ENTRANCE	EQU	11	; entrance to tunnel
+DOOR_OBJ	EQU	13	; a door
+PLATL_OBJ	EQU	14	; platform left move ripley
+PLATR_OBJ	EQU	15	; platform right move ripley
+LARVA_OBJ	EQU	16	; larva level 5 only
+
+****************************************
+*	Player Entire Control	*
+****************************************
+STAND_ACT	EQU	0		; action numbers for moves
+RUN_ACT	EQU	1
+JUMP_ACT	EQU	2
+CROUCH_ACT	EQU	3
+CRAWL_ACT	EQU	4
+CLIMB_ACT	EQU	5
+ACROSS_ACT	EQU	6
+TODUCT_ACT	EQU	7
+OTDUCT_ACT	EQU	8
+TURND_ACT	EQU	9
+DOWND_ACT	EQU	10
+OUTOF_ACT	EQU	11
+BLAD_ACT	EQU	12
+FLAME_ACT	EQU	13
+THROW_ACT	EQU	14
+FALL1_ACT	EQU	15
+FALL2_ACT	EQU	16
+FALL_ACT	EQU	17
+SLOPE_ACT	EQU	18
+LIFT_ACT	EQU	19
+
+	; Ripleys movements
+MOVE_RIPLEY	
+	IF	CHEAT
+	LDA	KEYBYTE0
+	AND	#%00000011		; cheat test INST & RETURN
+	BNE	TOOT
+	LDA	#255
+	STA	REACHED_END
+TOOT
+	ENDIF
+	JSR	PICK_UP
+	LDY	ACTION		; current action
+	LDA	TABLO,Y		; action addrrss
+	STA	RABS+1
+	LDA	TABHI,Y
+	STA	RABS+2
+	DEC	SPEED
+	BNE	NEXT_MOVE
+	LDA	SPEEDS,Y
+	STA	SPEED
+RABS	JSR	&FFFF		; do movement
+NEXT_MOVE	LDY	ACTION
+	LDA	FALLOW,Y		; 0=no scroll, 1 scrollx ,255 scrolly
+	BEQ	SENDER
+	BMI	SCROLLY
+	JMP	UP_SCROLLX	
+SCROLLY	JMP	UP_SCROLLY
+SENDER	RTS
+
+SPEEDS	DB	1	;STAND_ACT
+	DB	2	;RUN_ACT
+	DB	2	;JUMP_ACT
+	DB	1	;CROUCH_ACT
+	DB	2	;CRAWL_ACT
+	DB	2	;CLIMB_ACT
+	DB	4	;ACROSS_ACT
+	DB	5	;TODUCT_ACT
+	DB	5	;OTDUCT_ACT
+	DB	4	;TURND_ACT
+	DB	5	;DOWND_ACT
+	DB	5	;OUTOF_ACT
+	DB	5	;BLADD_DUCT
+	DB	10	;FLAME_ACT
+	DB	4	;THROW_ACT
+FAL1_SPD	DB	6	;FALL1_ACT
+FAL2_SPD	DB	6	;FALL2_ACT
+	DB	1	;FALL_ACT
+	DB	1	;SLOPE_ACT
+	DB	1	;LIFT_ACT
+
+	; 0 none ,1 xscroll ,-1 yscroll
+FALLOW	DB	1	;STAND_ACT
+	DB	1	;RUN_ACT
+	DB	1	;JUMP_ACT
+	DB	1	;CROUCH_ACT
+	DB	1	;CRAWL_ACT
+	DB	-1	;CLIMB_ACT
+	DB	1	;ACROSS_ACT
+	DB	-1	;TODUCT_ACT
+	DB	1	;OTDUCT_ACT
+	DB	1	;TURND_ACT
+	DB	1	;DOWND_ACT
+	DB	1	;OUTOF_ACT
+	DB	-1	;BLADD_DUCT
+	DB	-1	;FLAME_ACT
+	DB	-1	;THROW_ACT
+	DB	-1	;FALL1_ACT
+	DB	-1	;FALL2_ACT
+	DB	-1	;FALL_ACT
+	DB	0	;SLOPE_ACT
+	DB	-1	;LIFT_ACT
+
+	; player control
+TABLO	DL	STAND_STILL		; do nothing (no keys)
+	DL	RUN_ABOUT		; run (left / right)
+	DL	JUMP_DIAG		; jumping (up & left / right)
+	DL	CROUCH_DOWN		; down in legs
+	DL	CRAWL_ABOUT		; crawl along
+	DL	CLIMB_ABOUT		; climb up & down ladders
+	DL	CLIMB_ACROSS	; climb across a ladder if run into
+	DL	INTO_DUCT		; climb into tunnel duck from ladder
+	DL	OUT2_DUCT		; reverse out of duct to stand
+	DL	TURN_DUCT		; turn around in duct
+	DL	DOWN_DUCT		; duct down onto ladder top of
+	DL	OUTOF_DUCT		; get from crawl to ladder climb
+	DL	BLADD_DUCT		; get off bottom of ladder to duct
+	DL	FIRE_FLAME		; fire flame thrower
+	DL	THROW_GREN		; throw hand grnade
+	DL	FALL_FORWARD	; thrown forwards
+	DL	FALL_BACKWARD	; thrown backwards
+	DL	FALL_DOWN		; fall down screen until hit something
+	DL	FALL_SLOPE		; slide down a slope and tumble
+	DL	LIFT_SERVICE	; grace brotherly
+
+TABHI	DH	STAND_STILL
+	DH	RUN_ABOUT
+	DH	JUMP_DIAG
+	DH	CROUCH_DOWN
+	DH	CRAWL_ABOUT
+	DH	CLIMB_ABOUT
+	DH	CLIMB_ACROSS
+	DH	INTO_DUCT
+	DH	OUT2_DUCT
+	DH	TURN_DUCT
+	DH	DOWN_DUCT
+	DH	OUTOF_DUCT
+	DH	BLADD_DUCT
+	DH	FIRE_FLAME
+	DH	THROW_GREN
+	DH	FALL_FORWARD
+	DH	FALL_BACKWARD
+	DH	FALL_DOWN
+	DH	FALL_SLOPE
+	DH	LIFT_SERVICE	; grace brotherly
+
+****************************************
+*	STAND STILL		*
+****************************************
+STAND_STILL
+	LDA	LEFT		; any key movement
+	ORA	RIGHT
+	ORA	UP
+	ORA	DOWN
+	BEQ	NO_PRESS		; no directional movement
+	LDA	FIRE		; if fire and direction do fire moves
+	BNE	NO_PRESS
+	LDA	UP
+	ORA	DOWN
+	BEQ	DO_WALK		; no up or down so do walking
+
+	LDA	UP		; climb up ladder
+	BEQ	NO_CLMB		; when on bottom of ladder ie
+	JSR	BEHIND_LEGS		; no ladder going down
+	CMP	#LBOT1_OBJ		; ladder part at bottom of screen
+	BEQ	CLIM		; middle of a ladder then climb
+	CMP	#LADDER_OBJ
+	BEQ	CLIM
+	BNE	SET_JMP
+
+NO_CLMB	JSR	BEHIND_LEGS
+	CMP	#LADDER_OBJ
+	BEQ	CLIM
+	LDA	#CROUCH_ACT
+	STA	ACTION
+	LDA	#DUCK_SP		; duck frame
+	STA	FRAME
+	RTS
+
+	; will have up pressed
+SET_JMP	JSR	SET_DIR		; set direction on left or right
+	LDA	#JUMP_ACT		; must to up press
+	STA	ACTION
+	LDA	#JUMP_SP
+	STA	FRAME		; set frame
+	LDA	#0
+	STA	INDEX
+	STA	SPECIAL		; jump up at this point
+	RTS
+
+CLIM	JSR	ALIGN_LADDER
+	LDA	#CLIMB_ACT
+	STA	ACTION
+	LDA	#0
+	STA	INDEX		; table start
+NOFIREING	RTS
+
+	; No key press / or fire pressed
+NO_PRESS	JSR	SET_DIR
+	LDA	ACTION
+	BNE	NOFIREING		; action changed after moveing platform
+LIFT_SERVICE
+	LDX	#0
+	LDY	#0		; stand and fire
+	JMP	FIRE_WEAPONS	; may fire a bullet (return with c=x)
+
+DO_WALK	LDA	LEFT		; walk left
+	BEQ	!RIGHT
+	LDA	#128		; else must be left
+	NOW
+!RIGHT	LDA	#0		; face right
+	CMP	DIR		; want to move in same dir
+	BEQ	SAME_DIR
+	LDY	#5		; save A reg
+	STY	SPEED		; delay for turn around
+	LDY	#TURN_SP
+	STY	FRAME
+SAME_DIR	STA	DIR		; direction faceing
+	LDA	#RUN_ACT
+	STA	ACTION		; now do it
+	LDA	#0
+	STA	INDEX		; animation table
+	RTS
+
+SET_DIR	LDA	LEFT		; walk left
+	BNE	!FAC_RIGHT
+	LDA	RIGHT		; no right pressed when jump
+	BEQ	THIS_DIR		; in current direction faceing
+	LDA	#0		; else must be right
+	NOW
+!FAC_RIGHT	LDA	#128		; face left
+	STA	DIR		; direction faceing
+	SEC			; new dir set
+	RTS
+THIS_DIR	CLC			; no left or right key press
+	RTS			; (need to know for jump change dir)
+
+****************************************
+*	RUN LEFT/RIGHT as (DIR)	*
+****************************************
+
+RUN_ABOUT	LDA	RIPLEY_XL
+	STA	OLD_XL
+	LDA	RIPLEY_XH
+	STA	OLD_XH
+	LDA	RIPLEY_YL
+	STA	OLD_YL
+	LDA	RIPLEY_YH
+	STA	OLD_YH
+
+	LDA	LEFT		; still want to move
+	ORA	RIGHT
+	BEQ	BACK_TO
+	JSR	BELOW_FEET		; see if run off an edge
+	STA	SPECIAL
+	CMP	#0
+	BEQ	SET_FALL
+	CMP	#SLOPEL_OBJ
+	BEQ	SLIDEL
+	CMP	#SLOPER_OBJ
+	BEQ	SLIDER
+	JSR	ON_SIDE		; hit side of wall
+	BNE	CLEARW
+	; otherwise hit at feetm must check for tunnel entrance
+	LDA	TEMP		; compare hit for top of ripley
+	CMP	#ENTRANCE
+	BNE	WAIT1		; yes
+	JMP	ENTER_TUN
+
+CLEARW	CMP	#SLOPEL_OBJ
+	BEQ	WAIT1
+	CMP	#SLOPER_OBJ
+	BEQ	WAIT1
+	;CMP	#LADDER_OBJ		; run into a ladder
+	;BEQ	SET_STUFF		; set action to go across
+	LDA	TEMP		; but have I hit a door
+	CMP	#DOOR_OBJ
+	BEQ	WAIT1
+	BIT	DIR		; faceing what way
+	BPL	MOVRI		; moveing right
+	LDA	LEFT
+	BNE	NOCHECK1		; yes no check
+BACK_TO	LDA	#1
+	STA	SPEED
+BACK_STAND	LDA	#STAND_ACT		; back to stand when no key pressed
+	STA	ACTION
+	LDA	#STAND_SP		; standing frame
+	STA	FRAME		; set all time
+WAIT1	RTS
+SET_FALL	LDA	#JUMP_SP
+	STA	FRAME
+	LDA	#FALL_ACT
+	STA	ACTION
+	LDA	#0
+	STA	INDEX		; count for wack up
+	RTS
+
+SLIDEL	LDA	#128
+	NOW
+SLIDER	LDA	#0
+	STA	DIR
+	JSR	ALIGN_LADDER	; set ripley to tile position
+	LDA	RIPLEY_XL		; use y as setter
+	AND	#15
+	STA	MIKE1
+	LDA	RIPLEY_YL		; small adjust to y as well
+	AND	#&F0
+	ORA	MIKE1
+	STA	RIPLEY_YL
+	LDA	#-1 		; small adjust to fit niceley on slope
+	JSR	MOVEX_RIPLEY
+	LDA	#0		; count down for check to bottom
+	STA	INDEX
+	LDA	#SLOPE_ACT
+	STA	ACTION
+	LDA	#0
+	STA	SPECIAL		; scroll byte
+	LDA	#SLIDE_SP		; set sprite to slide down slope
+	STA	FRAME
+	; small adjustment to position for placeing correctly on slope
+NOPLA	RTS
+
+MOVRI	LDA	RIGHT		; still want to walk
+	BEQ	BACK_TO		; no
+NOCHECK1	LDA	#4
+	JSR	MOVEX_RIPLEY		; move a bit
+	LDA	INDEX
+	CLC
+	ADC	#4
+	CMP	#48
+	BNE	!LESS
+	LDA	#0		; set back walk frame index
+!LESS	STA	INDEX
+	AND	#&F8
+	LSR	A
+	LSR	A
+	TAX			; frame add
+	LDY	#1
+	JMP	FIRE_WEAPONS	; may fire a bullet
+
+ENTER_TUN	; enter tunnel now
+	; see if tunnel is
+	; XTEMP,YTEMP hold tile position for entrance block
+	LDY	ENTRANCEI		; exit tunnel
+	LDA	TUNNEL_TAB_X,Y
+	CMP	XTEMP
+	BNE	DO_TUN
+	LDA	TUNNEL_TAB_Y,Y	; both x and y at right position
+	CMP	YTEMP
+	BNE	DO_TUN
+	LDA	TUNNEL_CONT,Y
+	BNE	DO_TUN
+	RTS
+DO_TUN	JSR	HIDE_MAP		; disable whole map
+	LDA	#0
+	STA	LASTBY		; no tunnel in y position
+	LDA	#63		; last byte in table
+	STA	INDEX_X		; dummy set back for x tunnel
+	DEC	IN_TUNNELS		; now in tunnel section
+	LDA	#CONTROL_7		; dummy poke (value no meaning really)
+	STA	LASTBX		; save to temp
+	LDY	XTEMP		; block position saved from JSR ONSIDE
+	STY	TUNNELX_ONX		; tile x position
+	LDX	YTEMP		; y pos -1
+	DEX
+	STX	TUNNELX_ONY
+	JSR	GETMEM
+	BIT	DIR		; ripley faceing
+	BPL	!NOR
+	JSR	UNHIDE_RL		; scan right to left
+	JMP	AD_NORM
+!NOR	JSR	UN_LOOP1		; scan left to right
+AD_NORM	JSR	RE_PLOT		; redraw whole screen
+	LDA	#TODUCT_ACT
+	STA	ACTION
+	LDA	#1		; start
+	STA	SPECIAL		; add
+	STA	INDEX
+	RTS
+
+****************************************
+*	CRAWL LEFT/RIGHT as (DIR)	*
+****************************************
+CRAWL_ABOUT
+	LDA	DOWN		; still holding down button
+	ORA	FIRE		; or fire button
+	BEQ	NOFIRW		; no
+	LDX	#0
+	LDY	#3		; crawl fire
+	JMP	FIRE_WEAPONS	; may fire a bullet
+
+NOFIRW	LDA	INDEX		; get frame index number
+	CLC
+	ADC	#CRAWL_SP		; +1 for walking frame
+	STA	FRAME
+	LDA	LEFT		; still want to move
+	ORA	RIGHT
+	BEQ	WAIT2		; no key press
+	JSR	CRAWL_SIDE		; hit side of wall
+	CMP	#LADDER_OBJ
+	BEQ	GETDOWN_IT		; get down onto ladder
+	CMP	#LBOT2_OBJ		; bottom of duct ladder
+	BEQ	GET_UP		; then get up from crouch
+	LDA	DIR		; faceing what way
+	BEQ	!MOVRI		; moveing right
+	LDA	LEFT
+	BEQ	CHANGE_DIR		; turn around
+	BNE	MOVME
+!MOVRI	LDA	RIGHT		; still want to walk
+	BEQ	CHANGE_DIR		; want to go other way
+MOVME	LDA	#2
+	JSR	MOVEX_RIPLEY	; move a bit
+	INC	INDEX
+	LDA	INDEX
+	CMP	#6		; 0 to 5 for walk frames
+	BNE	WAIT2
+	LDA	#0
+	STA	INDEX
+WAIT2	RTS
+
+GETDOWN_IT	LDA	#DOWND_ACT
+	NOW
+CHANGE_DIR	; Now Turn around in the tunnel (three frames of animation)
+	LDA	#TURND_ACT
+	NOW
+GET_UP	LDA	#OUTOF_ACT		; climb up onto ladder
+	STA	ACTION
+	LDA	#1
+	STA	SPEED
+	LDA	#0
+	STA	INDEX
+	RTS
+
+****************************************
+*	JUMP ABOUT		*
+****************************************
+JUMP_DIAG	BIT	SPECIAL		; direction going
+	BMI	FA_DOWN
+	JSR	JUMP_HEAD
+	BEQ	FALL_NOW		; hit roof
+	LDY	INDEX
+	LDA	JUMP_TABY,Y		; y movement
+	EOR	#255
+	CLC
+	ADC	#1		; get inverse of it	
+	JSR	MOVEY_RIPLEY	; move up fristly
+	INC	INDEX
+	LDA	INDEX
+	CMP	#8 ;4
+	BEQ	BIG_JUMP		; at certain point check still for up
+	CMP	#16 ;8		; 
+	BCC	MOVE_LEFT_RIGHT
+FALL_NOW	DEC	SPECIAL		; now 255 (hope so!)
+	DEC	INDEX		; at 7 to start
+	JMP	MOVE_LEFT_RIGHT
+
+BIG_JUMP	LDA	UP		; still pressed
+	BEQ	FALL_NOW
+	BNE	MOVE_LEFT_RIGHT
+
+	; now fall down after jump
+FA_DOWN	LDY	INDEX
+	LDA	JUMP_TABY,Y		; y movement
+	JSR	MOVEY_RIPLEY	; move up fristly
+	DEC	INDEX
+	LDA	INDEX
+	BMI	END_JUMP
+	JSR	BELOW_FEET		; check below feet first
+	CMP	#SLOPEL_OBJ
+	BEQ	SSLIDE1		; no jump in to a slope
+	CMP	#SLOPER_OBJ
+	BEQ	SSLIDE2
+
+MOVE_LEFT_RIGHT
+	JSR	BEHIND_LEGS		; landed on a ladder !
+	CMP	#LADDER_OBJ
+	BEQ	SET_CLI
+	JSR	SET_DIR
+	BCC	NO_MOV		; no add to movement at no key pressed
+	JSR	ON_SIDE
+	BEQ	NO_MOV		; no movement hit side of something
+	CMP	#SLOPEL_OBJ		; down a slope
+	BEQ	NO_MOV
+	CMP	#SLOPER_OBJ
+	BEQ	NO_MOV
+	LDA	TEMP
+	CMP	#DOOR_OBJ		; hit a door
+	BEQ	NO_MOV
+	LDA	#2		; x movement
+	JMP	MOVEX_RIPLEY	; move ripley in x
+
+END_JUMP	JSR	BELOW_FEET		; landed on a ladder !
+	BEQ	LANDED		; normal platform
+	CMP	#0		; fall down still
+	BEQ	SET_F		; set fall down
+	CMP	#LADDER_OBJ		; on it
+	BEQ	SET_CLI		; climb on ladder
+LANDED	JMP	BACK_TO
+
+SET_CLI	LDA	#CLIMB_SP
+	STA	FRAME
+	JMP	CLIM		; set climb and align sprite
+
+SSLIDE1	JMP	ON_SLOPE1
+SSLIDE2	JMP	ON_SLOPE2
+SET_F	JMP	SET_FALL
+
+JUMP_TABY	DB	4,4,4,3,3,3,3,3,3,2,2,2,1,1,1,0
+
+****************************************
+*	CLIMB ACROSS LADDER	*
+****************************************
+	; this action when ripley run into a ladder
+	; now must set to stand then climb across and check for climb
+	; moves up and down
+CLIMB_ACROSS
+	LDX	INDEX		
+	LDA	FRAME_TAB1,X	; get sprite
+	STA	FRAME
+	LDA	DIR
+	EOR	TOG_TAB,X		; any setting of dirrerent direction
+	STA	DIR
+	LDA	MOVE_TAB1,X
+	JSR	MOVEX_RIPLEY
+	INX
+	CPX	#2		; go to climb action (wait on ladder)
+	BEQ	SET_CL
+	CPX	#4		; end of sequence
+	BCC	MORE
+	LDA	#1		; delay after jump
+	STA	SPEED
+	LDA	#STAND_ACT		; back to stand after a delay
+	STA	ACTION
+NO_MOV	RTS
+
+SET_CL	LDA	#CLIMB_ACT		; set up climb
+	STA	ACTION
+	JMP	ALIGN_LADDER	; align me up
+	
+MORE	STX	INDEX
+	RTS
+
+	; frame sequence is a follows
+	; set sprite to stand
+	; climb onto ladder
+	; hand from ladder (now check for up and down climb
+	; foot off ladder (reverse direction byte)
+	; set to stand (reverse direction byte back to original setting)
+	; set action back to stand (will auto set back to run if required)
+
+	; EOR value to direction 
+TOG_TAB	DB	0,0,128,128	; invert then invert back when get off
+FRAME_TAB1	DB	STRIDE_SP,HAND_SP,STRIDE_SP,STAND_SP
+
+MOVE_TAB1	DB	14,2,-2,18		; right move (where -2 is as dir changed
+	
+****************************************
+*	CLIBM UP & DOWN ladders	*
+****************************************
+CLIMB_ABOUT
+	LDA	FIRE		; main goal
+	BEQ	NFIRELAD
+	LDY	#4		; fire index
+	LDX	#0		; frame add (so know when fired)
+	JMP	FIRE_WEAPONS
+
+BOTTOM_LAD	BIT	IN_TUNNELS
+	BMI	SDUMMY
+	JMP	DO_WALK		; set to walk when at bottom of ladder
+
+	; on top of ladder into a duct
+INTODUCT	JSR	SET_DIR		; get wanted direction to get off
+	JSR	LADD_SIDE
+	CMP	#OFF2_OBJ		; 
+	BEQ	ABLE_TO		; let me get off this side otherwise
+	LDA	DIR		; else must be able to get off here
+	EOR	#128
+	STA	DIR
+	JSR	LADD_SIDE
+	CMP	#OFF2_OBJ
+	BNE	SDUMMY
+ABLE_TO	LDA	#0
+	STA	INDEX
+	LDA	#TODUCT_ACT
+	STA	ACTION
+	LDA	#1
+	STA	SPECIAL		; advance
+	STA	SPEED
+SDUMMY	RTS
+
+NFIRELAD	LDA	LEFT
+	ORA	RIGHT
+	BNE	GET_OFF		; want to get off ladder
+	
+MOV_UPD	LDA	UP		; climb up
+	BEQ	GO_DOWN
+	JSR	ON_HEAD		; dont go up if hit top of ladder
+	CMP	#TOP_LADDER		; top of ladder in duct
+	BEQ	INTODUCT		; get into it
+	CMP	#LADDER_OBJ		; still on a ladder
+	BNE	WAIT3		; not where dont move
+	LDA	#-2		; move up screen
+	JSR	MOVEY_RIPLEY
+	INC	INDEX		; frame count
+	LDA	INDEX
+	CMP	#12		; last one
+	BNE	WAIT3
+	LDA	#0		; reset back to first frame
+	BEQ	SAVE_EX
+GO_DOWN	LDA	DOWN		; still want to clibm
+	BEQ	WAIT3
+	JSR	BELOW_FEET
+	BEQ	BOTTOM_LAD		; back to walk	
+	CMP	#LBOT2_OBJ		; bottom of ladder in duct section
+	BEQ	BACKCRAL
+	CMP	#0
+	BEQ	WAIT3		; no move if no ladder there
+LAD_DO	LDA	#2
+	JSR	MOVEY_RIPLEY	; move a bit
+	DEC	INDEX		; reverse frames
+	LDA	INDEX		; 
+	CMP	#255		; below 0
+	BNE	WAIT3		; no
+	LDA	#5*2		; reset to last
+SAVE_EX	STA	INDEX
+WAIT3	LDA	INDEX
+	LSR	A
+	CLC
+	ADC	#CLIMB_SP		; +1 for actuall moves
+	STA	FRAME
+	RTS
+	
+HALF_LAD	LDA	RIPLEY_YL
+	AND	#15
+	CMP	#14
+	BCC	LAD_DO		; c=1 no scroll
+	RTS
+
+BACKCRAL	JSR	SET_DIR		; get wanted direction to get off
+	JSR	BOTSIDE		; below feet
+	BNE	ABLE_TO2		; let me get off this side otherwise
+	LDA	DIR		; else must be able to get off here
+	EOR	#128
+	STA	DIR
+	JSR	BOTSIDE
+	BEQ	HALF_LAD		; up frame no move
+ABLE_TO2	LDA	DIR
+	STA	SPECIAL
+	EOR	#128
+	STA	DIR		; other way faceing
+	LDA	#BLAD_ACT
+	STA	ACTION
+	LDA	#0
+	STA	INDEX
+	RTS
+
+GET_OFF	LDA	RIPLEY_YL
+	AND	#15
+	BIT	IN_TUNNELS
+	BMI	DUCKCHK		; check if duct place available
+	CMP	#6		; only when lsb has a 6 as last digit
+	BNE	CARY_NORM		;MOV_UPD
+	JSR	BELOW_FEET
+	LDA	RIGHT
+	BNE	GET_RIGHT
+	DEY
+	LDA	(MAP_MEM0),Y
+	;AND	#&7F
+	TAX
+	LDA	TILE_MAP,X
+	CMP	#OFF1_OBJ
+	BEQ	THISW
+CARY_NORM	JMP	MOV_UPD
+THISW	LDA	#128		; set direction leftwards
+SET_GO	STA	DIR
+	LDA	#2		; to get off index
+	STA	INDEX
+	LDA	#ACROSS_ACT		; get across ladder
+	STA	ACTION
+	RTS
+GET_RIGHT	INY
+	LDA	(MAP_MEM0),Y	; get map byte
+	;AND	#&7F
+	TAX			; index it
+	LDA	TILE_MAP,X		; see what to do for tile
+	CMP	#OFF1_OBJ		; ladder run either side
+	BNE	CARY_NORM
+SET_D1	LDA	#0		; faceing right
+	JMP	SET_GO
+
+DUCKCHK	CMP	#14		; position so can get into duct
+	BNE	CARY_NORM
+	JSR	SET_DIR		; get wanted direction to get off
+	JSR	LADD_SIDE		; any available get off position
+	BEQ	CARY_NORM		; hit object
+	CMP	#OFF2_OBJ		; off part
+	BNE	CARY_NORM		; no done do it then
+	JMP	ABLE_TO		; let me get off this side
+
+****************************************
+*	CROUCH / Pickup something	*
+****************************************
+	; Pickup items byte
+	; 0 (&78) Ammo Clip
+	; 1 (&79) Fuel Cylinders
+	; 2 (&7A) Hand Grenades
+	; 3 (&7B) Power Unit for Motion Tracker
+	; 4 (&7C) Grenade Clip for Pulse rifle
+	; 5 (&7D) Medi Pacs. Energy Bars
+
+	; (&7E) Clock
+	; (&7F) Face graphic
+CROUCH_DOWN
+	LDA	DOWN		; still holding down button
+	ORA	FIRE		; or fire button
+	BNE	STHLD		; yes
+	JMP	BACK_STAND
+
+STHLD	LDX	#0
+	LDY	#2
+	JMP	FIRE_WEAPONS	; may fire a bullet
+
+****************************************
+*	PICK ITEM WHEN FIRST DUCK	*
+****************************************
+PICK_UP	JSR	BEHIND_LEGS		; behind legs
+	CMP	#PICK_OBJ		; pickup item ?
+	BEQ	PICK_IT
+	RTS
+PICK_IT	LDX	#255		; start table
+GET_INDEX	INX
+	LDA	PICKUP_X,X		; same in x position
+	CMP	TILE_XPOS		; x hold
+	BNE	GET_INDEX
+	LDA	PICKUP_Y,X
+	CMP	TILE_YPOS		; y hold
+	BNE	GET_INDEX		; try next
+	LDY	TILE_XPOS		; place for pickup
+	LDA	PICKUP_OLD,X	; put to screen
+	STA	(MAP_MEM0),Y	; whatever I want from table
+	LDY	PICKUP_NEW,X	; get what type it is
+	LDA	ROUNDS,Y
+	CLC
+	ADC	ADDERS,Y
+	BCS	ABOVE		; above 256 ,set to max amount
+	CMP	MAXERS,Y		; to big a value
+	BCC	STORTO
+ABOVE	LDA	MAXERS,Y
+STORTO	STA	ROUNDS,Y
+	CPY	#4		; motion tracker
+	BNE	NOCHK
+	LDA	ROUNDS,Y		; get new amount
+	CMP	#110		; must of been from off position
+	BCS	NOCHK		; or when of been flashing
+	LDA	#0		; init motion tracker
+	STA	TRACKER_ON_OFF
+	STX	XTEMP
+	JSR	MOTION_TON		; motion tracker re display
+	LDX	XTEMP
+NOCHK	CPY	#5
+	BNE	THISC
+	LDA	#13
+	NOW
+THISC	LDA	#12
+	JSR	SETFX
+	LDA	PICKUP_OLD,X	; put to screen block number
+	LDX	TILE_XPOS
+	LDY	TILE_YPOS
+	JMP	PLOT_BLOCK
+
+ADDERS	DB	50		; pulse reload
+	DB	30		; flame fuel
+	DB	10		; pulse grenades
+	DB	20		; hand grenades
+	DB	100		; tracker power
+	DB	15		; energy
+MAXERS	DB	99
+	DB	99
+	DB	80
+	DB	90
+	DB	250
+	DB	ST_ENERGY		; max energy
+
+	; Check in front of sprite when crawling in duck
+	; for faceing right look 4 pixels ahead, left minus 24
+CRAWL_SIDE	LDA	#21+20		; top tile of sprite
+	JSR	GET_Y_MEM
+	LDA	RIPLEY_XL		; and divide down for tile place
+	BIT	DIR
+	BMI	SUBFROM1		; look at left side
+	CLC
+	ADC	#48		; right side of sprite
+	JMP	SAVE_EVM		; and do rest below
+SUBFROM1	SEC
+	SBC	#24
+	STA	TILE_XPOS
+	LDA	RIPLEY_XH
+	SBC	#0
+	JMP	STANDBY
+
+	; check left or right side of player into tile map pos for stop
+
+ON_SIDE	LDA	#4		; top tile of sprite
+	JSR	GET_TOP		; top half first
+	BEQ	VICTORIA		; return if a hit
+	STA	TEMP
+	LDA	TILE_XPOS
+	STA	XTEMP
+	LDA	TILE_YPOS
+	STA	YTEMP	
+BOTSIDE	LDA	#21+20
+	NOW
+LADD_SIDE	LDA	#4		; on side then on ladder
+GET_TOP	JSR	GET_Y_MEM
+	LDA	RIPLEY_XL		; and divide down for tile place
+	STA	TILE_XPOS
+	LDA	RIPLEY_XH		; high in A
+	BIT	DIR
+	BMI	STANDBY		; look at left side
+	LDA	TILE_XPOS
+	CLC
+	ADC	#24		; right side of sprite
+SAVE_EVM	STA	TILE_XPOS
+	LDA	RIPLEY_XH
+	ADC	#0
+STANDBY	LSR	A		; / 2
+	ROR	TILE_XPOS
+	LSR	A		; / 4
+	ROR	TILE_XPOS
+	LSR	A		; / 8
+	ROR	TILE_XPOS
+	LSR	A		; / 16
+	ROR	TILE_XPOS
+	LDY	TILE_XPOS
+	LDA	(MAP_MEM0),Y	; get tile number
+	;AND	#&7F
+	TAX
+	LDA	TILE_MAP,X		; see what to do for tile
+	CMP	#HIT_OBJ		; hit a wall
+VICTORIA	RTS
+
+	; check above or below player for tile (no can go)
+JUMP_HEAD	LDA	#3
+	NOW
+ON_HEAD	LDA	#0
+	NOW
+BELOW_FEET	LDA	#21+1+21		; when falling down
+	NOW
+BEHIND_LEGS
+	LDA	#21+20		; under legs (for pickup + others)
+	JSR	GET_Y_MEM
+	JSR	GET_X		; x at normal pos
+	LDY	TILE_XPOS
+	LDA	(MAP_MEM0),Y	; get map byte
+	;AND	#&7F
+	STA	TEMP		; save screen byte
+	TAX			; index it
+	LDA	TILE_MAP,X		; see what to do for tile
+	CMP	#HIT_OBJ
+	RTS
+
+**************************************************
+*	Get into Duct from top of ladder/floor*	
+**************************************************
+INTO_DUCT	LDX	INDEX
+	LDA	FRAME_TAB3,X	; get sprite
+	STA	FRAME
+	LDA	MOVEIN_Y,X
+	JSR	MOVEY_RIPLEY
+	LDA	MOVEIN_X,X
+	JSR	MOVEX_RIPLEY
+	INX
+	CPX	#4		; end of sequence
+	BNE	!SAV
+	JSR	DO_CONTROL1		; disable any duck where just was
+	LDA	#CRAWL_ACT
+	STA	ACTION
+	LDA	#10		; little rest delay ?if needed
+	STA	SPEED
+	LDX	#0		; reset
+!SAV	STX	INDEX
+	RTS
+
+FRAME_TAB3	DB	INTO_SP,INTO_SP+1,CRAWL_SP,CRAWL_SP+1
+MOVEIN_Y	DB	-8,0,-21,0
+MOVEIN_X	DB	0,4,12,4
+
+****************************************
+*	Get out Duct to floor	*	
+****************************************
+OUT2_DUCT	LDX	INDEX
+	LDA	FRAME_TAB8,X	; get sprite
+	STA	FRAME
+	LDA	MOVEIN1_Y,X
+	JSR	MOVEY_RIPLEY
+	LDA	MOVEIN1_X,X
+	JSR	MOVEX_RIPLEY
+	INX
+	CPX	#4		; end of sequence
+	BNE	!SAV
+	LDA	#STAND_ACT
+	STA	ACTION
+	LDA	DIR
+	EOR	#128
+	STA	DIR
+	LDA	#10		; little rest delay ?if needed
+	STA	SPEED
+	LDX	#0		; reset
+!SAV	STX	INDEX
+	RTS
+
+FRAME_TAB8	DB	CRAWL_SP,CRAWL_SP+1,INTO_SP+1,STAND_SP
+MOVEIN1_Y	DB	0,0,21,0
+MOVEIN1_X	DB	-6,-6,-12,-6
+
+****************************************
+*	Turn Around in Duct	*
+****************************************
+TURN_DUCT	LDX	INDEX
+	LDA	FRAME_TAB2,X	; get sprite
+	STA	FRAME
+	LDA	ADD_MOVE2,X
+	JSR	MOVEX_RIPLEY
+	LDA	DIR
+	EOR	TOG1_TAB,X		; any setting of dirrerent direction
+	STA	DIR
+	INX
+	CPX	#4		; go to climb action (wait on ladder)
+	BNE	ANIM
+	JSR	DO_CONTROL1		; disable any duck up / downwards
+	LDA	#CRAWL_ACT
+	STA	ACTION
+	LDX	#0
+ANIM	STX	INDEX
+	RTS
+
+TOG1_TAB	DB	0,0,128,0
+FRAME_TAB2	DB	CROUCH_SP,CROUCH_SP+1,CROUCH_SP,CRAWL_SP
+ADD_MOVE2	DB	0,0,0,-24
+
+****************************************
+*	Crawl Off Duct onto ladder	*
+****************************************
+DOWN_DUCT	LDX	INDEX
+	CPX	#2
+	BEQ	TOLAD
+	LDA	FRAME_TAB4,X	; get sprite
+	STA	FRAME
+	LDA	MOVE_TAB4,X
+	JSR	MOVEX_RIPLEY
+	INX
+	STX	INDEX
+	RTS
+
+TOLAD	JSR	ALIGN_LADDER
+	LDA	#CLIMB_ACT
+	STA	ACTION
+	LDA	#CLIMB_SP
+	STA	FRAME
+	LDA	#30		; move down for look like got on
+	JSR	MOVEY_RIPLEY
+	LDX	#0
+	STX	INDEX
+	RTS
+
+FRAME_TAB4	DB	CROUCH_SP,CROUCH_SP+1
+MOVE_TAB4	DB	16,24
+
+****************************************
+*	Get Out of Duct to ladder	*
+****************************************
+OUTOF_DUCT	LDX	INDEX		
+	LDA	FRAME_TAB5,X	; get sprite
+	STA	FRAME
+	LDA	MOVEX_TAB5,X
+	JSR	MOVEX_RIPLEY
+	LDA	MOVEY_TAB5,X
+	JSR	MOVEY_RIPLEY
+	INX
+	CPX	#8		; end of sequence
+	BCC	ROMORE
+	JSR	ALIGN_LADDER	; place to correct position
+	LDA	#CLIMB_ACT		; back to stand after a delay
+	STA	ACTION
+	CLC
+	LDX	#2
+ROMORE	STX	INDEX
+	RTS
+
+FRAME_TAB5	DB	OUTOF_SP,OUTOF_SP+1,CLIMB_SP,CLIMB_SP+1,CLIMB_SP+2,CLIMB_SP+3
+	DB	CLIMB_SP+0,CLIMB_SP+1
+MOVEX_TAB5	DB	26,06,12,0,0,0,0,0
+MOVEY_TAB5	DB	0,0,2,-8,-2,-2,-2,-2
+
+*********************************************
+*	Get off bottom of ladder to duck	*
+*********************************************
+BLADD_DUCT	LDX	INDEX		
+	LDA	FRAME_TAB9,X	; get sprite
+	STA	FRAME
+	LDA	MOVEX_TAB9,X
+	BIT	SPECIAL
+	BPL	ASIS
+	EOR	#255		; invsese of this
+	CLC
+	ADC	#1
+ASIS	JSR	NORMAL_AD		;MOVEX_RIPLEY
+	LDA	MOVEY_TAB9,X
+	JSR	MOVEY_RIPLEY
+	INX
+	CPX	#6		; end of sequence
+	BCC	RUDMORE
+	LDA	#CRAWL_ACT		; back to stand after a delay
+	STA	ACTION
+	CLC
+	LDX	#0
+RUDMORE	STX	INDEX
+	RTS
+
+FRAME_TAB9	DB	CLIMB_SP+2,CLIMB_SP+1,CLIMB_SP,OUTOF_SP+1,OUTOF_SP,CRAWL_SP
+MOVEX_TAB9	DB	0,0,0,12,8,28
+MOVEY_TAB9	DB	4,4,8,-5,0,0
+
+****************************************
+*	Fire Flame Thrower	*
+****************************************
+FIRE_FLAME	LDA	CANFIRE		; flame still going
+	BNE	NOSCROL		; yes
+	LDA	BULLET_YADD		; bullet direction 1,-1 on ladder
+	BNE	IN_CLIMB
+NORAC	BIT	IN_TUNNELS
+	BMI	CRAWL_THEN
+	BIT	LIFT_SET		; riding on a lift
+	BVS	TOLFT
+	LDA	DOWN		; see if ducking down
+	BEQ	ST_AND
+	LDA	#CROUCH_ACT
+	NOW
+CRAWL_THEN	LDA	#CRAWL_ACT
+	NOW
+IN_CLIMB	LDA	#CLIMB_ACT
+	STA	ACTION
+	LDA	#1
+	STA	INDEX
+	STA	SPEED
+	RTS
+
+TOLFT	LDA	#LIFT_ACT
+	NOW
+ST_AND	LDA	#STAND_ACT
+	STA	ACTION
+	LDA	#STAND_SP		; standing frame
+	STA	FRAME		; set all time
+	LDA	#1
+	STA	SPEED
+NOSCROL	RTS
+
+****************************************
+*	Throw Hand Grenade	*
+****************************************
+THROW_GREN	LDX	INDEX
+	CPX	#3
+	BEQ	SETB
+	TXA
+	CLC
+	ADC	#HANDG_SP		; start frame
+	STA	FRAME
+	INX
+	STX	INDEX
+	RTS
+
+SETB	LDA	#16		; throw grenade
+	JSR	SETFX
+	LDA	#STAND_SP		; set back to stand
+	STA	FRAME
+	; Now position bullet grenade near ripley position
+	LDA	#10		; down from position
+	JSR	MOVE_ADDY		; set bullet y
+	LDA	DIR
+	STA	BULLET_DIR
+	BPL	ADD_LOTS
+	LDA	#-8
+	NOW
+ADD_LOTS	LDA	#24		; past sprite and on a little
+	JSR	MOVE_ADDX
+	LDY	#5		; first frame of grenade
+	STY	BU_FRAME
+	DEY
+	STY	WEAPON_FIRED	; grenade update now
+	BIT	LIFT_SET
+	BVC	!NOT_ON
+	LDA	#LIFT_ACT
+	NOW
+!NOT_ON	LDA	#STAND_ACT
+	STA	ACTION
+	RTS
+
+*	Fall movements when hit	*
+FALL_FORWARD
+	LDA	INDEX
+	CMP	#MOVEX_TAB6-FRAME_TAB6; end of table
+	BEQ	SET_STAND
+	JSR	ON_SIDE		; hit side of wall
+	BEQ	!REVERSE
+	CMP	#DOOR_OBJ
+	BEQ	!REVERSE	
+	CMP	#SLOPEL_OBJ
+	BEQ	SETS1
+	CMP	#SLOPER_OBJ
+	BEQ	SETS2
+	JSR	BELOW_FEET
+	CMP	#SLOPEL_OBJ
+	BEQ	SETS1
+	CMP	#SLOPER_OBJ
+	BNE	!NREVERSE
+	JMP	SETS2
+!REVERSE	LDA	DIR
+	EOR	#128		; reverse direction
+	STA	DIR	
+!NREVERSE	LDX	INDEX
+	LDA	FRAME_TAB6,X	; get sprite
+	STA	FRAME
+	LDA	MOVEX_TAB6,X
+	JSR	MOVEX_RIPLEY
+	LDA	MOVEY_TAB6,X
+	JSR	MOVEY_RIPLEY
+REST_OF	CPX	#6
+	BEQ	NOW_SLOW
+	CPX	#5
+	BNE	NODELAYA
+	BIT	IN_TUNNELS
+	BMI	NODELAYA
+	JSR	BELOW_FEET		; check below feet first
+	CMP	#HIT_OBJ
+	BEQ	NOW_BLINK		; advance on index
+	LDA	#1
+	STA	FAL1_SPD
+	STA	FAL2_SPD
+	LDA	#2		; smoothly
+	JMP	MOVEY_RIPLEY	; move down screen
+
+NOW_SLOW	LDA	#100
+	STA	BLANKING
+	LDA	#50
+	JMP	KING
+
+NOW_BLINK	LDA	#6
+	STA	FAL1_SPD
+	STA	FAL2_SPD
+	LDA	#1
+KING	STA	SPEED
+NODELAYA	INC	INDEX		; advance pointer
+	RTS
+
+
+SET_STAND	LDA	#150		; inviso for a bit
+	STA	BLANKING
+	BIT	IN_TUNNELS		; hit in tunnel
+	BPL	!STAND
+	JMP	CRAWL_THEN		; set back to crawl
+!STAND	JMP	BACK_TO		; set to stand act and sprite
+
+SETS1	LDA	#150
+	STA	BLANKING
+	LDA	#-8
+	JSR	MOVEX_RIPLEY
+	LDA	#-8
+	JSR	MOVEY_RIPLEY
+	JMP	SLIDEL		; set to slide left
+SETS2	LDA	#150
+	STA	BLANKING
+	LDA	#-8
+	JSR	MOVEX_RIPLEY
+	LDA	#-8
+	JSR	MOVEY_RIPLEY
+	JMP	SLIDER
+
+FALL_BACKWARD
+	LDA	INDEX
+	CMP	#MOVEX_TAB7-FRAME_TAB7; end of table
+	BEQ	SET_STAND
+	JSR	ON_SIDE		; hit side of wall
+	BEQ	!REVERSE
+	CMP	#DOOR_OBJ
+	BEQ	!REVERSE	
+	CMP	#SLOPEL_OBJ
+	BEQ	SETS1
+	CMP	#SLOPER_OBJ
+	BEQ	SETS2
+	JSR	BELOW_FEET
+	CMP	#SLOPEL_OBJ
+	BEQ	SETS1
+	CMP	#SLOPER_OBJ
+	BNE	!NREVERSE
+	JMP	SETS2
+!REVERSE	LDA	DIR
+	EOR	#128		; reverse direction for fall down
+	STA	DIR	
+!NREVERSE	LDX	INDEX
+	LDA	FRAME_TAB7,X	; get sprite
+	STA	FRAME
+	LDA	MOVEX_TAB7,X
+	JSR	MOVEX_RIPLEY
+	LDA	MOVEY_TAB7,X
+	JSR	MOVEY_RIPLEY
+	JMP	REST_OF
+
+
+FRAME_TAB7	DB	DIE2_SP,DIE2_SP,DIE2_SP,DIE2_SP,DIE2_SP
+	DB	DIE2_SP,DIE2_SP+1
+	DB	DIE2_SP+2,DIE2_SP+3
+MOVEX_TAB7	DB	-6,-4,-6,-6,-4
+	DB	0,0
+	DB	0,0
+MOVEY_TAB7	DB	-2,-3,-5,5,5
+	DB	0,0
+	DB	0,0
+
+FRAME_TAB6	DB	DIE1_SP,DIE1_SP,DIE1_SP,DIE1_SP,DIE1_SP
+	DB	DIE1_SP,DIE1_SP+1
+	DB	DIE1_SP+2,DIE1_SP+3
+MOVEX_TAB6	DB	6,4,6,6,4
+	DB	0,0
+	DB	0,0
+MOVEY_TAB6	DB	0,-4,-4,4,4
+	DB	0,0
+	DB	0,0
+
+TUMBLE_DIE	LDY	INDEX
+	LDA	JUMP_TABY,Y		; y movement
+	BIT	SPECIAL		; direction going
+	BMI	FAL_DOWN
+	BVS	SCAN_ME		; scan back to valid position
+	EOR	#255
+	CLC
+	ADC	#1		; get inverse of it	
+	JSR	MOVEY_RIPLEY	; move up fristly
+	INY
+	CPY	#16
+	BCC	SOFORTH
+	DEC	SPECIAL		; now 255 (hope so!)
+	DEY
+SOFORTH	STY	INDEX
+	TYA
+	CLC
+	AND	#3
+	ADC	#SLIDE_SP
+	STA	FRAME
+	RTS
+
+	; now fall down after jump
+FAL_DOWN	JSR	MOVEY_RIPLEY	; move up fristly
+	DEY
+	BPL	SOFORTH
+	; now want to go backto valid position
+	LDA	#0		; blank out ripley
+	STA	FRAME
+	LDA	#64
+	STA	SPECIAL		; no set to scan to valid position
+	RTS
+
+SCAN_ME	JSR	GO_BACK_V
+	BCS	DONE_IT
+END_THERE	SEC
+	RTS
+
+DONE_IT	; now get valid position for last cords (move a block back
+	LDA	#-16
+	JSR	NORMAL_AD
+	JSR	BELOW_FEET		; standing on what
+	BEQ	SETTLED		; got this pos
+	LDA	#32		; else other side 
+	JSR	NORMAL_AD
+SETTLED	JMP	SET_STAND
+
+	; scroll screen back to last valid position
+GO_BACK_V	LDY	RIPLEY_XL
+	CPY	OLD_XL		; same in low x
+	BNE	CHANGEX		; diff so move cords
+	LDA	RIPLEY_XH
+	CMP	OLD_XH
+	BEQ	CHANGEOY		; x is there so do y move only
+CHANGEX	TYA
+	SEC
+	SBC	OLD_XL
+	LDA	RIPLEY_XH
+	SBC	OLD_XH
+	BCC	LESS
+	LDA	#-2
+	NOW
+LESS	LDA	#2
+	JSR	NORMAL_AD
+	JSR	UP_SCROLLX
+	CLC
+	RTS
+
+CHANGEOY	LDY	RIPLEY_YL
+	CPY	OLD_YL		; same in low x
+	BNE	CHANGEY		; diff so move cords
+	LDA	RIPLEY_YH
+	CMP	OLD_YH
+	BEQ	END_THERE		; x is there so do y move only
+CHANGEY	TYA
+	SEC
+	SBC	OLD_YL
+	LDA	RIPLEY_YH
+	SBC	OLD_YH
+	BCC	LESS1
+	LDA	#-2
+	NOW
+LESS1	LDA	#2
+	JSR	MOVEY_RIPLEY
+	JSR	UP_SCROLLY		; scroll in x
+	CLC
+	RTS
+****************************************
+*	Fall Down		*
+****************************************
+FALL_DOWN	JSR	BELOW_FEET		; check below feet first
+	BEQ	ON_PLAT		; go back to walk
+	CMP	#OFF1_OBJ
+	BEQ	ON_PLAT
+	CMP	#SLOPEL_OBJ
+	BEQ	ON_SLOPE1
+	CMP	#SLOPER_OBJ
+	BEQ	ON_SLOPE2
+	LDA	#2
+	JSR	MOVEY_RIPLEY
+	INC	INDEX		; count fall amount
+	LDA	INDEX
+	CMP	#80		; fallen to far
+	BEQ	LOOSE_IT
+	CLC			; set scroll to move
+	RTS
+
+LOOSE_IT	LDA	#20
+	JSR	LOOSE
+	LDA	#5
+	STA	INDEX
+	LDA	#FALL1_ACT
+	STA	ACTION
+	LDA	#1
+	STA	SPEED
+	RTS
+
+	; Landed on something can walk on to (loose take some damage)
+ON_PLAT	JMP	BACK_TO
+
+ON_SLOPE1	JMP	SLIDEL
+ON_SLOPE2	JMP	SLIDER
+
+****************************************
+*	Fall Down Slope		*
+****************************************
+FALL_SLOPE	JSR	BELOW_FEET		; right under ripley
+	BEQ	LAND
+	CMP	#0
+	BNE	MOV_NOW
+	JSR	BEHIND_LEGS
+	CMP	#0		; anything below me
+	BEQ	SET_FAL
+MOV_NOW	LDA	#1
+	JSR	MOVEX_RIPLEY
+	LDA	#1
+	JSR	MOVEY_RIPLEY
+	LDA	#SLIDE_SP
+	STA	FRAME
+LOAD_OF	INC	SPECIAL
+	LDA	SPECIAL
+	AND	#16
+	BEQ	UPY		; use y first
+	JSR	UP_SCROLLX		; else let control scroll in y
+	SEC
+	RTS
+	
+UPY	JSR	UP_SCROLLY		; else let control scroll in x
+	SEC
+	RTS
+
+LAND	LDA	#1
+	JSR	MOVEY_RIPLEY
+	LDA	RIPLEY_YL
+	AND	#254
+	STA	RIPLEY_YL
+	LDA	#8		; and another bodge
+	JSR	MOVEX_RIPLEY
+	JMP	BACK_TO		; to stand position
+
+SET_FAL	LDA	RIPLEY_YL
+	AND	#254
+	STA	RIPLEY_YL
+	JMP	SET_FALL		; fall down
+
+;DONE_SCROL	RTS
+
+****************************************
+*	MOVE RIPLEY X & Y by A	*
+****************************************
+	; Move ripley in A by checking direction faceing for add or sub
+MOVEX_RIPLEY
+	BIT	DIR		; faceing what way
+	BPL	NORMAL_AD
+	; else subtrace value
+	EOR	#255
+	CLC
+	ADC	#1		; turn to negitive number
+	; Call with eith +ive or -ive number for move factor
+NORMAL_AD	CMP	#0		; get flags for passed add value
+	BMI	NEGITIVE
+	CLC
+	ADC	RIPLEY_XL		; ripley map + 2
+	STA	RIPLEY_XL
+	LDA	RIPLEY_XH
+	ADC	#0
+	STA	RIPLEY_XH
+	RTS
+
+NEGITIVE	CLC
+	ADC	RIPLEY_XL
+	STA	RIPLEY_XL
+	LDA	RIPLEY_XH
+	SBC	#0
+	STA	RIPLEY_XH
+	RTS
+
+MOVEY_RIPLEY
+	CMP	#0
+	BMI	!NOISE
+	CLC
+	ADC	RIPLEY_YL
+	STA	RIPLEY_YL
+	LDA	RIPLEY_YH
+	ADC	#0
+	STA	RIPLEY_YH
+	RTS
+
+!NOISE	CLC
+	ADC	RIPLEY_YL
+	STA	RIPLEY_YL
+	LDA	RIPLEY_YH
+	SBC	#0
+	STA	RIPLEY_YH
+	RTS
+

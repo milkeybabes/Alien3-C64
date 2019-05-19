@@ -1,0 +1,211 @@
+FIRSTRASTER	EQU	246-64
+SECONDRASTER	EQU	255
+PANY		EQU	17	; pannel y char position
+	; map stops ripley
+YMAP_STOP	EQU	((120-40)/2)	; map offset y cord in middle
+	; -20 so when map =0 sprite is exactly top of screen -2's in move
+XMAP_STOP	EQU	((304-24)/2)	; map offset x cord in middle
+BOX_X	EQU	18 ;32		; space left & right before scroll
+BOX_Y	EQU	8 ;16		; space top and bottom before scroll
+
+	; 64 sprites on 38 columns 24 rows display
+	; sprite xlength(24) ylength(21) all in pixels
+	; start left = 31  off left  = 7   (31-24)
+	; right side = 311 off right = 335 (311+24)
+	; start top  = 54  off top   = 33  (54-21)
+
+START_LEFT_X	EQU	31	; sprite on left side start
+OFF_LEFT_X		EQU	7	; sprites off left sprite window
+OFF_RIGHT_X	EQU	335-256	; sprites off right with msb set
+START_TOP_Y	EQU	50	; sprite on top side start
+OFF_TOP_Y		EQU	33	; sprites off top of screen
+OFF_BOTTOM_Y	EQU	175	; sprites off bottom of screen
+
+SCREEN_XLENGTH	EQU	38*8	; chars* pixels/char
+SCREEN_YLENGTH	EQU	15*8+1	; (+1 really)
+
+	ZP	R6510,1
+	ZP	NMISAVEA,1		; A reg save in NMI code
+	ZP	IRQSAVEA,1		; All reg saves for IRQ handlers
+	ZP	IRQSAVEX,1
+	ZP	IRQSAVEY,1
+	ZP	IRQY,1		; temp y save when scrolling
+	ZP	ANSWERL,1		; temp loc1
+	ZP	ANSWERH,1		; temp loc2
+	ZP	PLACEMENT,4		; what place am at
+	ZP	OTHER_SPR,1		; other sprite pointer swap byte(alien will be now smooth)
+	; scroll and ass bits
+	ZP	SCREENENABLE,1	; of total display is turned on
+	ZP	SCREENTEST,1	; when equal to screenenable ok
+	ZP	YSCROLL,1		; smooth scroll Y position
+	ZP	XSCROLL,1		; smooth scroll X position
+	ZP	XOFFSET,1		; X offset into map tile positions
+	ZP	XOFFTEMP,1		; temp for above used in plot down
+	ZP	YOFFSET,1		; Y offset into map tile positions
+	ZP	TINX,1		; offset into tile X position
+	ZP	TINY,1		; offset into tile Y position
+	ZP	SCREEN,2		; plotting of map to screen
+	ZP	COLOUR,2		; nybble temp
+	ZP	SCREENA,2		; another set for above
+	ZP	COLOURA,2		; and colour
+	ZP	MAPMEM,2		; point to map data (for scroll)
+	ZP	PIXEL_XL,1		; pixel position top left of map
+	ZP	PIXEL_XH,1		; xcord lo/hi
+	ZP	PIXEL_YL,1		; y cord lo/hi
+	ZP	PIXEL_YH,1		; hi
+	; reading of input devices
+	ZP	MOVE,1		; joystick byte to do what ok
+	ZP	JOY,1		; joystick temp byte never use	
+	ZP	KEYBYTE0,2		; tester for keys (maybe cheat mode!)
+	ZP	SYNC,1		; 1/50 second counter
+	ZP	LEFT,1		; 0/1 the value of
+	ZP	RIGHT,1		; 0/1 0 or 1 for any
+	ZP	UP,1		; 0/1 movement for
+	ZP	DOWN,1		; 0/1 that direction
+	ZP	FIRE,1		; 0/1 in the joystick
+	ZP	SELECT,1		; 0/1 in weapons select
+	ZP	PAUSE,1		; hold game
+	; weapon params
+	ZP	FIRE_SPEED,1	; speed for weapon fire update
+	ZP	CANFIRE,1		; 0 can fire something 255 not yet
+	ZP	CURRENT_WEAPON,1	; selected weapon
+	ZP	SELECT_SPEED,1	; delay for weapon select
+	ZP	WEAPON_FIRED,1	; for update call
+	ZP	WEAPON_SPEED,1	; bullet up date speed count
+	ZP	WEAPON_INDEX,1	; general var1
+	; locations must not change as used for pickup adding
+	ZP	ROUNDS,1		; Ammo left in Rifle              (0)
+	ZP	FLAME_FUEL,1	; Flame thrower fuel left         (1)
+	ZP	GRENADES,1		; Current grenades left           (2)
+	ZP	HAND_GRENADES,1	; Guess what                      (3)
+	ZP	TRACKER_TIME,1	; time left for mation tracker
+	ZP	ENERGY,1		; life left in ripley
+	ZP	TRACKER_SPEED,1	; update speed for motion tracker
+	ZP	TRACKER_ON_OFF,1	; motion tracker on or off
+	; Ripley params
+	ZP	RIPLEY_XL,1		; map x position low
+	ZP	RIPLEY_XH,1		; high byte
+	ZP	RIPLEY_YL,1		; map y position low
+	ZP	RIPLEY_YH,1		; high byte
+	ZP	OLD_XL,1		; save for ripley valid position
+	ZP	OLD_XH,1		; save for ripley valid position
+	ZP	OLD_YL,1		; save for ripley valid position
+	ZP	OLD_YH,1		; save for ripley valid position
+	ZP	RIPLEY_X,1		; sprite cords when working out
+	ZP	RIPLEY_Y,1		; from map to screen
+	ZP	RIPLEY_MSB,1	; temp holds as must play about for
+	; Hand grenade and flash sprite map position
+MAX_SPRITES	EQU	6	; enemy +1 for bullets
+	ZP	SPRITE_XL,MAX_SPRITES
+	ZP	SPRITE_XH,MAX_SPRITES
+	ZP	SPRITE_YL,MAX_SPRITES
+	ZP	SPRITE_YH,MAX_SPRITES
+	ZP	POINTERS,MAX_SPRITES
+BULLET_XL	EQU	SPRITE_XL		; map x position low
+BULLET_XH	EQU	SPRITE_XH		; high byte
+BULLET_YL	EQU	SPRITE_YL		; map y position low
+BULLET_YH	EQU	SPRITE_YH		; high byte
+BU_FRAME	EQU	POINTERS		; bullet frame (or body bits of ripley)
+ENEMY_XL	EQU	SPRITE_XL+1
+ENEMY_XH	EQU	SPRITE_XH+1
+ENEMY_YL	EQU	SPRITE_YL+1
+ENEMY_YH	EQU	SPRITE_YH+1
+ENEMY_FRAME	EQU	POINTERS+1
+	ZP	SPRITE_MSB,MAX_SPRITES-1
+	ZP	TRACKER_X,MAX_SPRITES-1	; old plot positions
+	ZP	TRACKER_Y,MAX_SPRITES-1	; for enemy on motion tracker 
+	ZP	ENEMY_TYPE,MAX_SPRITES-1
+	ZP	ENEMY_SPEED,MAX_SPRITES-1; movement speed
+	ZP	ENEMY_INDEX,MAX_SPRITES-1; frame index ,temp
+	ZP	ENEMY_ACT,MAX_SPRITES-1		; sub action in control (or passed value)
+	ZP	ENEMY_ATTACH,MAX_SPRITES-1
+	ZP	ENEMY_PRESET,MAX_SPRITES-1	; index to enemy table
+	ZP	ENEMY_DAMAGE,MAX_SPRITES-1; hits left to kill
+	ZP	ENEMY_XDIR,MAX_SPRITES-1	; moveing direction in x
+	ZP	ENEMY_YDIR,MAX_SPRITES-1	; moveing direction in y
+	ZP	CURRENT_XL,MAX_SPRITES-1	; setup blank for sprites
+	ZP	CURRENT_XH,MAX_SPRITES-1
+	ZP	CURRENT_YL,MAX_SPRITES-1
+	ZP	CURRENT_YH,MAX_SPRITES-1
+PRISONER_XL	EQU	SPRITE_XL+1+4
+PRISONER_XH	EQU	SPRITE_XH+1+4
+PRISONER_YL	EQU	SPRITE_YL+1+4
+PRISONER_YH	EQU	SPRITE_YH+1+4
+PRISONER_FRAME	EQU	ENEMY_FRAME+4
+PRISONER_THERE	EQU	ENEMY_TYPE+4
+PRISONER_NUMBER	EQU	ENEMY_PRESET+4
+	ZP	BULLET_DIR,1	; direction to move (bullet) (+ up & down)
+	ZP	BULLET_RANGE,1	; distance travelled (used for random ypos hit)
+	ZP	BULLET_YADD,1	; small add to bullet y at when fire
+	ZP	BULLET_YSUB,1	; bodge for y position move in fireing
+	ZP	BULLET_XADD,1	; left or right movement
+	ZP	BULLET_MSB,1	; have for msb in irq code
+	ZP	SCANNER_INDEX,1	; enemy table index current place
+	ZP	ACTION,1		; do what to ripley
+	ZP	DIR,1		; direction faceing
+	ZP	FRAME,1		; ripley sprite frame
+	ZP	FRAME_ADD,1		; for fire control
+	ZP	ST_LIVES,1		; tries for level
+	ZP	LIVES,1		; actual lives for game
+	ZP	SCORELO,1		; score for player
+	ZP	SCOREMI,1
+	ZP	SCOREHI,1
+	ZP	SPEED,1		; frame update speed
+	ZP	INDEX,1		; movement index count
+	ZP	SPECIAL,1		; control byte for temp use in actions
+	ZP	BLANKING,1		; flasher delay when been hit
+	; Game Parameters
+	ZP	GAME_MODE,1		; (0)Easy (1)Normal (2)Hard
+	ZP	LEVEL,1		; what level on
+	ZP	IN_TUNNELS,1	; if in tunnel section (0 no,255 yes)
+	ZP	LIFT_SET,1		; if lift been enabled (so when moveing dont set again)
+	ZP	LEV_BYTE,2		; copy of lev_byte in data block
+	ZP	GUARDIAN,1		; guardian frame
+	ZP	REACHED_END,1	; got to end of current part
+	ZP	RESCUED,1		; how many rescued (for bonus)
+	ZP	TO_RESCUE,1		; amount to save (must keep a zp copy)
+	ZP	TIMER_LOW,1		; time remaining low bcd
+	ZP	TIMER_HIGH,1	; time remaining high bcd
+	ZP	CLOCK,1		; counts for timer to change
+	ZP	CHEATMODE,1		; 0/1 0 invincible 1 normal game
+	ZP	SEED,1		; random seed
+	ZP	DOOR_CONTROL,1	; door last door status
+	ZP	DOOR_NUMBER,1	; index to table for what one
+	ZP	DOOR_POSITION,1	; last door y move position
+	ZP	DOOR_SPEED,1	; speed of open/clos of doors
+	ZP	TUNNELX_ONX,1	; tunnelx xpos turned on at
+	ZP	TUNNELX_ONY,1	; tunnelx ypos turned on at
+	ZP	TUNNELY_ONX,1	; tunnely xpos turned on at
+	ZP	TUNNELY_ONY,1	; tunnely ypos turned on at
+	ZP	LASTBX,1		; byte that was there
+	ZP	INDEX_X,1		; index for control byte
+	ZP	LASTBY,1		; byte that was there
+	ZP	INDEX_Y,1		; index for contro byte
+
+	ZP	TILE_XPOS,1		; for tunnel check
+	ZP	TILE_YPOS,1		; when want to turn on & off
+	ZP	MAP_MEM0,2		; map mem for control byte (must save)
+
+	ZP	COLLIDE_LL,1	; collision detection params
+	ZP	COLLIDE_LH,1
+	ZP	COLLIDE_RL,1
+	ZP	COLLIDE_RH,1
+	ZP	COLLIDE_TL,1
+	ZP	COLLIDE_TH,1
+	ZP	COLLIDE_BL,1
+	ZP	COLLIDE_BH,1
+
+BONUS_LO	EQU	COLLIDE_LL		; bonus add for rescued prisoners
+BONUS_MI	EQU	COLLIDE_RL
+BONUS_HI	EQU	COLLIDE_TL
+
+	ZP	MIKE1,2
+	ZP	MIKE2,2
+	ZP	XTEMP,1
+	ZP	YTEMP,1
+	ZP	TEMP,1
+
+MAP_MEM1	EQU	COLLIDE_LL		; map memory for unhide & hide
+MAP_MEM2	EQU	COLLIDE_RL		; routines
+MAP_MEM3	EQU	COLLIDE_TL
+MAP_MEM4	EQU	COLLIDE_BL

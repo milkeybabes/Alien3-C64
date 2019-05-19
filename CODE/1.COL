@@ -1,0 +1,1534 @@
+
+	ORG	&9300+&D00
+
+	; swap about double height characters from level charset
+	; and storage area (not enougth to hold both at once
+
+SWAP_GUARD
+SET_GUARD	EQU	SWAP_GUARD+3
+DO_GUARDIAN	EQU	SET_GUARD+3
+
+GS	EQU	6	; guardian x move
+	
+	IF	ST_LEVEL=2 ! ST_LEVEL=6 ! ST_LEVEL=10 ! ST_LEVEL=14 ! ST_LEVEL=16
+	JMP	DO_SWAP
+	JMP	DSET_GUARD
+	JMP	GDO_GUARDIAN
+
+DO_SWAP	LDY	#>&9300		; start of guardian sprites
+	STY	MIKE1
+	LDA	#<&9300
+	STA	MIKE1+1
+	LDA	#>&A440		; start of enemy sprites, skip blank
+	STA	MIKE2
+	LDA	#<&A440
+	STA	MIKE2+1
+	LDX	#&D		; &640 bytes needed, but do more anyway
+	LDY	#0
+GEXCHANGE	LDA	(MIKE1),Y
+	PHA
+	LDA	(MIKE2),Y
+	STA	(MIKE1),Y
+	PLA
+	STA	(MIKE2),Y
+	INY
+	BNE	GEXCHANGE
+	INC	MIKE2+1
+	INC	MIKE1+1
+	DEX
+	BNE	GEXCHANGE
+	RTS
+
+	; init guardian sprite
+
+DSET_GUARD	LDA	PLACE_X		; as x low
+	STA	ENEMY_XL
+	LDA	PLACE_Y
+	STA	ENEMY_XH		; high x
+	LDA	WHAT_ONE
+	STA	ENEMY_YH		; y low
+	LDA	CONTROL_IT
+	STA	ENEMY_YL		; y high
+	LDA	#AL_GUARD		; guardian enemy
+	STA	ENEMY_TYPE+0
+	LDA	#AL_DUMMY
+	STA	ENEMY_TYPE+1
+	STA	ENEMY_TYPE+2
+	STA	ENEMY_TYPE+3
+	STA	GUARDIAN		; stand stance
+	STA	SPC3		; and colour
+	STA	SPC4
+	STA	SPC5
+	STA	SPC6
+	STA	ENEMY_ACT+0		; sub action walk
+	STA	ENEMY_SPEED
+	IF	ST_LEVEL=2
+	LDA	#120		;10*12
+	ENDIF
+	IF	ST_LEVEL=6
+	LDA	#156		;13*12
+	ENDIF
+	IF	ST_LEVEL=10
+	LDA	#192		;16*12
+	ENDIF
+	IF	ST_LEVEL=14
+	LDA	#240		;20*12
+	ENDIF
+	STA	ENEMY_DAMAGE
+	LDX	#0
+	STX	ENEMY_INDEX+0
+	LDA	#-GS
+	STA	ENEMY_XDIR
+	JSR	GUARDIAN_FRAMES	; set other positions & frames
+	JSR	COPY_IT
+	INX
+	JSR	COPY_IT
+	INX
+	JSR	COPY_IT
+	INX
+	JMP	COPY_IT
+
+GDO_GUARDIAN
+	LDA	ENEMY_DAMAGE	; hits left to kill
+	BNE	ALIVE4
+	CPY	#3		; already
+	BEQ	ALIVE4		; in explosion frames then ignore
+	LDA	#6
+	STA	ENEMY_INDEX		; amount of moves for guardian
+	STA	ENEMY_SPEED		; 1 for speed
+	LDA	#&10		; 100 added
+	JSR	SCOREADD		; give me some points 100 y=1 a=0 tehe
+	LDA	ENEMY_XDIR
+	STA	ENEMY_XDIR+1
+	STA	ENEMY_XDIR+2
+	STA	ENEMY_XDIR+3	; copy last dir to other bits for explode
+	LDY	#3		; sub action blow to shit
+	STY	ENEMY_YDIR		; used for count down explosion frames
+	STY	ENEMY_ACT		; do this right away fall through
+	IF	ST_LEVEL=10 ! ST_LEVEL=14
+	LDA	DOOR_SIZE+0
+	AND	#&7F
+	STA	DOOR_SIZE+0
+	ENDIF
+	IF	ST_LEVEL=2 ! ST_LEVEL=6
+	LDA	DOOR_SIZE+1
+	AND	#&7F
+	STA	DOOR_SIZE+1
+	ENDIF
+ALIVE4	DEC	ENEMY_SPEED		; all have a speed factor
+	BNE	SLOWER
+	LDA	GUA_SPEED,Y		; get speed back
+	STA	ENEMY_SPEED
+	LDA	GTABLELOW,Y
+	STA	!GOTO+1
+	LDA	GTABLEHIGH,Y
+	STA	!GOTO+2
+!GOTO	JSR	&FFFF		; do it
+	BCC	QUEX		; dont update ok
+	JSR	GUARDIAN_FRAMES	; set other positions
+SLOWER	JMP	COPY_GUARD
+
+GTABLELOW	DL	GUARD_STAND,GUARD_RUN,GUARD_JUMP,GUARD_DIE
+GTABLEHIGH	DH	GUARD_STAND,GUARD_RUN,GUARD_JUMP,GUARD_DIE
+GUA_SPEED	DB	4,6,2,4
+
+GUARD_STAND
+	RTS
+
+	; walk left & right (when near ripley jump and acid spit at her!)
+GUARD_RUN	LDA	ENEMY_INDEX
+	CLC
+	ADC	#1
+	AND	#3
+	STA	ENEMY_INDEX
+	CLC
+	ADC	#2		; walk start
+	STA	GUARDIAN
+	LDA	ENEMY_XDIR
+	JSR	ENEMY_MOVEX
+	JSR	BASH_RIPPS		; wack into ripley
+	JSR	SIDE_ENEMY		; side of wall
+	BEQ	!DORE
+	CMP	#DOOR_OBJ
+	BNE	ITS
+!DORE	JSR	OTHER_DIR		; walk other way
+ITS	JSR	DISTANCEX		; get face dir
+	LDA	MIKE1+1		; > 256 distance
+	BNE	IMPOSS
+	LDA	MIKE1
+	CMP	#80		; near to ripley
+	BCS	IMPOSS		; far away
+	; set to jump alien
+	LDA	#2
+	STA	ENEMY_ACT
+	LDA	#9		; about to jump frame
+	STA	GUARDIAN
+	LDA	#0
+	STA	ENEMY_INDEX
+	LDA	ENEMY_TYPE+4	; free yet
+	BNE	IMPOSS
+	JSR	SET_AL_SPIT		; setup spit of acid at ripley
+	LDA	#10		; adjustmeny of acid spit
+	LDX	#4
+	JSR	ENEMY_MOVEY
+	LDX	#0
+IMPOSS	SEC
+QUEX	RTS
+
+GUARD_JUMP	LDY	ENEMY_INDEX		; table position
+	CPY	#GURD_YTAB1-GURD_XTAB1
+	BEQ	BACK_TO_RUN
+	INC	ENEMY_INDEX
+	LDA	GURD_XTAB1,Y
+	JSR	MOVE_ENEMYX
+	LDA	GURD_YTAB1,Y
+	JSR	ENEMY_MOVEY
+
+	LDA	#10
+	STA	GUARDIAN
+	JSR	SIDE_ENEMY		; hit wall then swap direction
+	BEQ	OTHER_DIR		; set back else leave for detection
+	CMP	#DOOR_OBJ
+	BEQ	OTHER_DIR
+	SEC
+	RTS
+
+OTHER_DIR	LDA	ENEMY_XDIR
+	EOR	#GS~-GS
+	STA	ENEMY_XDIR
+	SEC
+	RTS
+
+BACK_TO_RUN
+	LDA	#1		; to running
+	STA	ENEMY_ACT
+	LDA	#0
+	STA	ENEMY_INDEX
+	LDA	#10		; small delay
+	STA	ENEMY_SPEED
+	SEC
+	RTS
+
+GURD_XTAB1	DB	4,4,4,4,6,6,6,6,6,4,4,4,4
+GURD_YTAB1	DB	-8,-6,-4,-4,-4,-2,0,2,4,4,4,6,8
+
+GUARD_DIE	DEC	ENEMY_INDEX		; amount of moves for blast
+	BEQ	DEADEDD		; all exploded
+	LDA	#2
+	JSR	MOVE_ENEMYX
+	LDA	#-2
+	JSR	ENEMY_MOVEY
+	INX
+	LDA	#-2
+	JSR	MOVE_ENEMYX
+	LDA	#-2
+	JSR	ENEMY_MOVEY
+	INX
+	LDA	#2
+	JSR	MOVE_ENEMYX
+	LDA	#2
+	JSR	ENEMY_MOVEY
+	INX
+	LDA	#-2
+	JSR	MOVE_ENEMYX
+	LDA	#2
+	JSR	ENEMY_MOVEY
+	LDX	#0
+	CLC
+	RTS
+
+DEADEDD	JSR	KILL_ENEMY
+	CLC
+	RTS
+
+	; set sprite frames and position
+GUARDIAN_FRAMES
+	LDY	#1
+	JSR	SAME_ENEMYY
+	LDA	#-24
+	JSR	ADD_ENEMYX		; next other side
+	INY
+	JSR	SAME_ENEMYX
+	LDA	#21
+	JSR	ENEMY_ADDY
+	INY
+	LDA	#-24
+	JSR	ADD_ENEMYX
+	LDA	#21
+	JSR	ENEMY_ADDY
+	LDY	GUARDIAN		; current frame
+	LDA	ENEMY_XDIR		; what way faceing
+	BMI	!LEFT_FACE
+	LDA	GR_TL,Y
+	STA	ENEMY_FRAME+0
+	LDA	GR_TR,Y
+	STA	ENEMY_FRAME+1	; other one
+	LDA	GR_BL,Y
+	STA	ENEMY_FRAME+2
+	LDA	GR_BR,Y
+	STA	ENEMY_FRAME+3
+	RTS
+
+!LEFT_FACE	LDA	GL_TL,Y
+	STA	ENEMY_FRAME+0
+	LDA	GL_TR,Y
+	STA	ENEMY_FRAME+1	; other one
+	LDA	GL_BL,Y
+	STA	ENEMY_FRAME+2
+	LDA	GL_BR,Y
+	STA	ENEMY_FRAME+3
+	RTS
+
+REVERSEGX	LDA	ENEMY_XDIR,X
+	EOR	#GS~-GS
+	STA	ENEMY_XDIR,X
+	RTS
+
+	; guardian frames
+	; 00 blank
+	; 01 stand stance
+	; 02 walk frame 0
+	; 03 walk frame 1
+	; 04 walk frame 2
+	; 05 walk frame 3
+
+	; 06 turn head frame 0
+	; 07 turn head frame 1
+	; 08 turn head frame 2
+
+	; 09 crouch for jump
+	; 10 jump frame
+
+GL_TL	DB	00,12 ,10,12,10,12, 14,14,13, 20,12
+GL_TR	DB	00,15 ,11,15,11,15, 16,17,16, 21,15
+GL_BL	DB	00,01 ,03,04,05,06, 18,18,18, 22,24
+GL_BR	DB	00,02 ,02,07,08,09, 19,19,19, 23,25
+
+G	EQU	25
+
+GR_TL	DB	00,12+G ,10+G,12+G,10+G,12+G, 14+G,14+G,13+G, 20+G,12+G
+GR_TR	DB	00,15+G ,11+G,15+G,11+G,15+G, 16+G,17+G,16+G, 21+G,15+G
+GR_BL	DB	00,01+G ,03+G,04+G,05+G,06+G, 18+G,18+G,18+G, 22+G,24+G
+GR_BR	DB	00,02+G ,02+G,07+G,08+G,09+G, 19+G,19+G,19+G, 23+G,25+G
+
+COPY_GUARD	LDA	ENEMY_SPEED,X
+	AND	#1
+	BEQ	COPY_IST
+	LDX	#3
+	JSR	COPY_IT
+	DEX
+	JSR	COPY_IT
+	DEX
+	JSR	NEXT_BANK		; now show other half of first
+	DEX
+	JMP	NEXT_BANK
+
+COPY_IST	JSR	COPY_FRAME
+	INX
+	JSR	COPY_FRAME
+	DEX
+COPY_FRAME	LDA	ENEMY_FRAME,X
+	STA	TEMP		; save to temp
+	LDA	PLACEMENT,X		; what bank is sprite
+	BNE	COPY_IT2		; = 4 plot to first set of pointers
+	LDA	SPR2_MEML,X		; sprite mem low
+	STA	DEST_SPR2+1		; save to copy area
+	LDA	SPR2_MEMH,X		; sprite mem high
+	STA	DEST_SPR2+2
+	JMP	GO_COPY2
+COPY_IT2	LDA	SPR1_MEML,X		; sprite mem low
+	STA	DEST_SPR2+1		; save to copy area
+	LDA	SPR1_MEMH,X		; sprite mem high
+	STA	DEST_SPR2+2
+GO_COPY2	LDA	#0
+	LSR	TEMP		; frame * 64
+	ROR	A
+	LSR	TEMP
+	ROR	A
+	STA	SOURCE2+1		; low first strip
+	LDA	TEMP
+	CLC
+	ADC	#<ENEMY_MEM		; start of sprites all same high byte
+	STA	SOURCE2+2
+	LDY	#62
+SOURCE2	LDA	&FFFF,Y
+DEST_SPR2	STA	&FFFF,Y
+	DEY
+	BPL	SOURCE2
+	RTS
+
+ENEMY_ADDY	BMI	!NEGITIVE
+	CLC
+	ADC	ENEMY_YL,X		; move cord
+  	STA	ENEMY_YL,Y
+	LDA	ENEMY_YH,X		; high bit
+	ADC	#0
+	STA	ENEMY_YH,Y
+	RTS
+
+!NEGITIVE	CLC
+	ADC	ENEMY_YL,X
+	STA	ENEMY_YL,Y
+	LDA	ENEMY_YH,X
+	SBC	#0
+	STA	ENEMY_YH,Y
+	RTS
+
+END_ROOM
+	ENDIF
+
+	ORG	&0200
+	IF	TAPE_LOADER=1
+	INCBIN	..\MUSIC\BANK0.DAT
+	ENDIF
+	IF	TAPE_LOADER=0 & DISK_LOADER=0
+	INCBIN	..\MUSIC\BANK1.DAT
+	ENDIF
+
+	ORG	&0D00
+
+PAN_COL	HEX	0B05050505050505050505050505050505050505050A0F0D0D0B0B0B0B0B0D0D
+	HEX	0E090F0F0F0F0909090D0D0D0E0D0E0E0B0F0F090D0D0909090B0D0B0D0D0A09
+	HEX	0D0C0F0E0D0B0D0E0D0D080D0F0D0D0D0E0909090D0F0D0D0E0E0E0E0E0E0E0E
+	HEX	0E0E0E0E0E0E0E0E0E0E0E0E0F090F0F0F0F0F0F0F09090909090A0909090909
+	HEX	090E090B0B090B0F0F0B0B090B0B0B090B0D0D0B0B0B0A0B0B0D0D0B0D0D0000
+
+	; Hand grenades
+HAND_CHR	HEX	758282
+	HEX	6C6D6E
+	HEX	6F7071
+	HEX	727374
+	HEX	7F7F7F
+
+	; Grenade Launcher
+GRENAD_CHR	HEX	758282
+	HEX	767778
+	HEX	797A7B
+	HEX	7C7D7E
+	HEX	7F7F7F
+
+	; Flame thrower
+FLAME_CHR	HEX	808182
+	HEX	838485
+	HEX	868788
+	HEX	898A8B
+	HEX	8C8D8E
+
+	; Pulse Rifle
+PULSE_CHR	HEX	8F9091
+	HEX	929394
+	HEX	959697
+	HEX	98999A
+	HEX	9B9C9D
+
+TRACK_OFF	HEX	2526200000
+	HEX	2121232121
+	HEX	2222242222
+	HEX	0000200000
+	HEX	333F3F3345
+
+TRACK_ON	HEX	58595A5B5C
+	HEX	5D5E5F6061
+	HEX	6263646566
+	HEX	6768696A6B
+	HEX	333D3E3345
+
+	;NMI handler
+NMI	STA	NMISAVEA
+	LDA	CIA2ICR		; get nmi status ad clear NMI
+	LSR	A
+	BCC	NONMI		; only one here
+	LDA	#%01010110		; extended,blank,6 yscroll
+	STA	VICCR1
+	LDA	#%10010101		; &8000 to &BFFF
+	STA	BANK
+	LDA	#%00010111		; Multi,38,7 Xscroll
+	STA	VICCR2	
+	LDA	#%11111110		; char & screen memory
+	STA	VICMCR
+NONMI	LDA	NMISAVEA
+IGNORE	RTI
+
+	; TITLE PAGE AND HIGH SCORE IRQ
+TIRQ	STA	IRQSAVEA
+	LDA	#1
+	STA	VICIFR
+	LDA	SCREENENABLE	; SCREEN ON OR OFF
+	STA	SCREENTEST
+	ORA	#%00001011		; 25 ROWS 3 Y SCROLL
+	STA	VICCR1
+	LDA	#%00011000		; MULTICOLOUR 38 COLS 3 IN X SCROLL
+	STA	VICCR2
+	LDA	#%11011110		; char & screen memory
+	STA	VICMCR
+	LDA	#%10010100		; BANK 3 &C000 TO &FFFF
+	STA	BANK
+	LDA	#0
+	STA	ENABLE		; no sprites on screen
+	LDA	#LT_BLUE
+	STA	COLOUR1
+	LDA	#BLUE
+	STA	COLOUR2
+	JSR	JOYGET
+	STX	IRQSAVEX
+	STY	IRQSAVEY
+	JSR	PLAYER		; music player
+	IF	PDS
+	JSR	PDSMONITOR
+	ENDIF
+
+	LDX	IRQSAVEX
+	LDY	IRQSAVEY
+	DEC	SYNC
+	LDA	#200
+	STA	RASTER
+	LDA	IRQSAVEA
+	RTI
+
+	IF	NTSC
+NMIPOS1	EQU	&2DA2
+	ELSE
+NMIPOS1	EQU	&38C4		; first nmi position
+	ENDIF
+
+	;SECOND IRQ for main
+IRQ2	STA	IRQSAVEA		; RASTER AT RASTP
+	LDA	#1
+	STA	VICIFR
+LO1	LDA	#>NMIPOS1		; NMI TIMER COUNTERS
+	STA	TIMERALow
+	LDA	#<NMIPOS1
+	STA	TIMERAHigh
+	LDA	#&81		; &81 TIMER A &83 FOR A & B
+	BIT	CIA2ICR
+	STA	CIA2ICR
+	LDA	#&99
+	STA	CIA2CRA		; set timer A going
+	IF	PDS
+	STX	IRQSAVEX
+	STY	IRQSAVEY
+	JSR	PDSMONITOR
+	LDX	IRQSAVEX
+	LDY	IRQSAVEY
+	ENDIF
+	LDA	#%00010000		; MULTICOLOUR 38 COLS 3 IN X SCROLL
+	ORA	XSCROLL
+	STA	VICCR2
+	LDA	SCREENENABLE	; SCREEN ON OR OFF
+	STA	SCREENTEST
+	ORA	YSCROLL
+	STA	VICCR1
+	LDA	#%11011110		; char & screen memory
+	STA	VICMCR
+
+	LDA	#%10010100		; &C000 to &FFFF
+	STA	BANK
+	LDA	#DARK_GREY
+CO1	EQU	*-1
+	STA	COLOUR1
+	LDA	#MED_GREY
+CO2	EQU	*-1
+	STA	COLOUR2
+	LDA	#WHITE
+	STA	COLOUR3
+	LDA	#>IRQ
+	STA	IRQVECTOR
+	LDA	#<IRQ
+	STA	IRQVECTOR+1
+	DEC	SYNC
+	LDA	#FIRSTRASTER	; pannel irq
+	STA	RASTER
+	LDA	IRQSAVEA
+	RTI
+
+****************************************
+*	FIRST IRQ for main	*	
+****************************************
+IRQ	STA	IRQSAVEA		; raster entry
+	LDA	#%00000110		; screen turn on now correct scroll
+	STA	VICCR1
+	LDA	#LT_RED		; pannel colours (yuk!)
+	STA	COLOUR1
+	LDA	#DARK_GREY
+	STA	COLOUR2
+	LDA	#WHITE
+	STA	COLOUR3
+	LDA	#1
+	STA	VICIFR
+	STY	IRQSAVEY
+	STX	IRQSAVEX
+	LDA	BLANKING		; flash ripley
+	BEQ	NOFLA
+	LDA	NOFLA+1
+	EOR	#%00000110
+	STA	NOFLA+1
+	DEC	BLANKING		; now delay it
+NOFLA	LDA	#255
+	NOW
+	LDA	#255
+	STA	ENABLE		; sprite enable
+	LDY	#0		; smc
+SCROLLACTION	EQU	*-1
+	LDA	SCREL,Y
+	STA	ABSM+1
+	LDA	SCREH,Y
+	STA	ABSM+2
+	LDA	#0
+	STA	SCROLLACTION
+ABSM	JSR	&FFFF
+	BCS	MOVESCREEN		; block copy wanted ok
+	JSR	RIPLEY_TO_SCREEN	; map ripley to screen cords
+	JSR	SPRITES_PLACE	; map all other sprites to screen
+	JSR	MAP_CORDS
+	LDA	YSCROLL		; change nmi position
+	CMP	#6		; depending on y scroll
+	BNE	QW
+	IF	NTSC
+	LDA	#&A2
+	ELSE
+	LDA	#&9E		; change y scroll at 6
+	ENDIF
+	NOW
+QW	IF	NTSC
+	LDA	#&A2
+	ELSE
+	LDA	#&C5		; when at 0 2 4
+	ENDIF
+	STA	LO1+1		; NMI timer to turn off screen low byte
+
+	LDA	#>IRQ2
+	STA	IRQVECTOR
+	LDA	#<IRQ2
+	STA	IRQVECTOR+1
+	LDY	IRQSAVEY
+	LDX	IRQSAVEX
+	LDA	#SECONDRASTER
+	STA	RASTER
+	LDA	IRQSAVEA
+	RTI
+
+	; now set return from NMI to screen copy pointed by Y reg
+MOVESCREEN	JSR	RIPLEY_TO_SCREEN	; map ripley to screen cords
+	STY	IRQY
+	JSR	SPRITES_PLACE	; map all other sprites to screen
+	JSR	MAP_CORDS
+	LDY	IRQY
+	TSX			; get return address
+	LDA	STACK+1,X		; from stack and PSR
+	STA	PSR1+1 
+	LDA	STACK+2,X		; pc low
+	STA	PC1+1
+	LDA	STACK+3,X		; pc high
+	STA	PC1+2
+	LDA	COPYTL,Y		; point new return address
+	STA	STACK+2,X		; to colour memory copy
+	LDA	COPYTH,Y		; so irq can be used in colour
+	STA	STACK+3,X		; copy
+	LDX	IRQSAVEX		; also save off previous
+	STX	RETURN_NMI+1	; registers entered on irq
+	LDY	IRQSAVEY		; get back from last state
+	STY	REGY1+1		; y also destroyed
+	LDA	YSCROLL		; change nmi position
+	CMP	#6		; depending on y scroll
+	BNE	QW2
+	IF	NTSC
+	LDA	#&A2
+	ELSE
+	LDA	#&9E		; change y scroll at 6
+	ENDIF
+	NOW
+QW2	IF	NTSC
+	LDA	#&A2
+	ELSE
+	LDA	#&C5		; when at 0 2 4
+	ENDIF
+	STA	LO1+1		; NMI timer to turn off screen low byte
+	LDA	#>IRQ2
+	STA	IRQVECTOR
+	LDA	#<IRQ2
+	STA	IRQVECTOR+1
+	LDA	#SECONDRASTER
+	STA	RASTER
+	LDA	IRQSAVEA
+	STA	REGA1+1
+	RTI
+
+SCREL	DL	NOBOUND2		; 0 no movement pressed
+	DL	SCROLL_RIGHT	; 1
+	DL	SCROLL_LEFT		; 2
+	DL	SCROLL_DOWN		; 3
+	DL	SCROLL_UP		; 4
+
+SCREH	DH	NOBOUND2
+	DH	SCROLL_RIGHT	; X move + 1
+	DH	SCROLL_LEFT		; X move - 1
+	DH	SCROLL_DOWN		; Y move + 1
+	DH	SCROLL_UP		; Y move - 1
+
+	; block copy table
+COPYTL	DL	COPYRIGHT
+	DL	COPYLEFT
+	DL	COPYDOWN
+	DL	COPYUP
+
+COPYTH	DH	COPYRIGHT
+	DH	COPYLEFT
+	DH	COPYDOWN
+	DH	COPYUP
+
+	;scroll screen right
+SCROLL_RIGHT	LDA	PIXEL_XL
+	SEC
+	SBC	#2
+	STA	PIXEL_XL
+	BCS	!HIGH
+	DEC	PIXEL_XH
+!HIGH	LDA	XSCROLL
+	CLC
+	ADC	#SSPEED		; speed of scroll
+	STA	XSCROLL
+	CMP	#8		; over bound ?
+	BCC	SAVEB1		; under character boundry
+	LDY	#0		; save  2 bytes
+	STY	XSCROLL
+	LDA	TINX		; offset into tile
+	EOR	#8
+	STA	TINX
+	BEQ	TILO1
+	DEC	XOFFSET
+TILO1	SEC
+SAVEB1	RTS
+
+	;scroll screen left
+SCROLL_LEFT	LDA	PIXEL_XL	; screen x map + 2
+	CLC
+	ADC	#2
+	STA	PIXEL_XL
+	BCC	!HIGH
+	INC	PIXEL_XH
+!HIGH	LDA	XSCROLL
+	SEC
+	SBC	#SSPEED		; scroll speed
+	STA	XSCROLL
+	BPL	NOBOUND2
+	LDA	#6
+	STA	XSCROLL
+	LDA	TINX
+	EOR	#8		; use 8 as ad for pixel (if needed)
+	STA	TINX
+	BNE	TILO2
+	INC	XOFFSET
+TILO2	LDY	#1
+	SEC
+	RTS
+NOBOUND2	CLC
+	RTS
+
+	;scroll screen down
+SCROLL_DOWN	LDA	PIXEL_YL	; screen y map -2
+	SEC
+	SBC	#2
+	STA	PIXEL_YL
+	BCS	!HIGH
+	DEC	PIXEL_YH
+!HIGH	LDA	YSCROLL
+	CLC
+	ADC	#SSPEED		; speed of scroll
+	CMP	#8
+	STA	YSCROLL
+	BCC	SAVEB2
+	LDA	#0
+	STA	YSCROLL
+	LDA	TINY
+	EOR	#8		; same as was for tinx
+	STA	TINY
+	BEQ	TILO3
+	DEC	YOFFSET
+TILO3	LDY	#2		; index for block move
+	SEC
+SAVEB2	RTS
+
+	;scroll screen up
+SCROLL_UP	LDA	PIXEL_YL		; screen y map + 2
+	CLC
+	ADC	#2
+	STA	PIXEL_YL
+	BCC	!HIGH
+	INC	PIXEL_YH
+!HIGH	LDA	YSCROLL
+	SEC
+	SBC	#SSPEED		; scroll speed
+	STA	YSCROLL
+	BPL	NOBOUND4
+	LDA	#6
+	STA	YSCROLL
+	LDA	TINY
+	EOR	#8
+	STA	TINY
+	BNE	TILO4
+	INC	YOFFSET
+TILO4	LDY	#3
+	SEC
+	RTS
+NOBOUND4	CLC			; not over character boundry
+	RTS
+
+	; copy from screen+0 to screen+1 ie TL to TR
+COPYRIGHT	LDX	#38
+!LOOP1	LDA	SCREEN1+(0*40),X
+	STA	SCREEN1+(0*40)+1,X
+	LDA	NYBBLE+(0*40),X
+	STA	NYBBLE+(0*40)+1,X
+
+	LDA	SCREEN1+(1*40),X
+	STA	SCREEN1+(1*40)+1,X
+	LDA	NYBBLE+(1*40),X
+	STA	NYBBLE+(1*40)+1,X
+
+	LDA	SCREEN1+(2*40),X
+	STA	SCREEN1+(2*40)+1,X
+	LDA	NYBBLE+(2*40),X
+	STA	NYBBLE+(2*40)+1,X
+
+	LDA	SCREEN1+(3*40),X
+	STA	SCREEN1+(3*40)+1,X
+	LDA	NYBBLE+(3*40),X
+	STA	NYBBLE+(3*40)+1,X
+
+	LDA	SCREEN1+(4*40),X
+	STA	SCREEN1+(4*40)+1,X
+	LDA	NYBBLE+(4*40),X
+	STA	NYBBLE+(4*40)+1,X
+
+	LDA	SCREEN1+(5*40),X
+	STA	SCREEN1+(5*40)+1,X
+	LDA	NYBBLE+(5*40),X
+	STA	NYBBLE+(5*40)+1,X
+
+	LDA	SCREEN1+(6*40),X
+	STA	SCREEN1+(6*40)+1,X
+	LDA	NYBBLE+(6*40),X
+	STA	NYBBLE+(6*40)+1,X
+
+	LDA	SCREEN1+(7*40),X
+	STA	SCREEN1+(7*40)+1,X
+	LDA	NYBBLE+(7*40),X
+	STA	NYBBLE+(7*40)+1,X
+	DEX
+	BPL	!LOOP1
+
+	LDX	#38
+!LOOP2	LDA	SCREEN1+(8*40),X
+	STA	SCREEN1+(8*40)+1,X
+	LDA	NYBBLE+(8*40),X
+	STA	NYBBLE+(8*40)+1,X
+
+	LDA	SCREEN1+(9*40),X
+	STA	SCREEN1+(9*40)+1,X
+	LDA	NYBBLE+(9*40),X
+	STA	NYBBLE+(9*40)+1,X
+
+	LDA	SCREEN1+(10*40),X
+	STA	SCREEN1+(10*40)+1,X
+	LDA	NYBBLE+(10*40),X
+	STA	NYBBLE+(10*40)+1,X
+
+	LDA	SCREEN1+(11*40),X
+	STA	SCREEN1+(11*40)+1,X
+	LDA	NYBBLE+(11*40),X
+	STA	NYBBLE+(11*40)+1,X
+
+	DEX
+	BPL	!LOOP2
+
+	LDX	#38
+!LOOP3	LDA	SCREEN1+(12*40),X
+	STA	SCREEN1+(12*40)+1,X
+	LDA	NYBBLE+(12*40),X
+	STA	NYBBLE+(12*40)+1,X
+
+	LDA	SCREEN1+(13*40),X
+	STA	SCREEN1+(13*40)+1,X
+	LDA	NYBBLE+(13*40),X
+	STA	NYBBLE+(13*40)+1,X
+
+	LDA	SCREEN1+(14*40),X
+	STA	SCREEN1+(14*40)+1,X
+	LDA	NYBBLE+(14*40),X
+	STA	NYBBLE+(14*40)+1,X
+
+	LDA	SCREEN1+(15*40),X
+	STA	SCREEN1+(15*40)+1,X
+	LDA	NYBBLE+(15*40),X
+	STA	NYBBLE+(15*40)+1,X
+
+	DEX
+	BPL	!LOOP3
+
+	JSR	PLOTDOWNLEFT
+
+RETURN_NMI	LDX	#255		; x register
+REGY1	LDY	#255
+PSR1	LDA	#255		; PSW when entered in IRQ
+	PHA
+REGA1	LDA	#255		; A back
+	PLP
+PC1	JMP	&FFFF		; now back to main code
+
+	; copy from screen+1 to screen+0 ie TR to TL
+COPYLEFT	LDX	#0
+!LOOP1	LDA	SCREEN1+(0*40)+1,X
+	STA	SCREEN1+(0*40),X
+	LDA	NYBBLE+(0*40)+1,X
+	STA	NYBBLE+(0*40),X
+
+	LDA	SCREEN1+(1*40)+1,X
+	STA	SCREEN1+(1*40),X
+	LDA	NYBBLE+(1*40)+1,X
+	STA	NYBBLE+(1*40),X
+
+	LDA	SCREEN1+(2*40)+1,X
+	STA	SCREEN1+(2*40),X
+	LDA	NYBBLE+(2*40)+1,X
+	STA	NYBBLE+(2*40),X
+
+	LDA	SCREEN1+(3*40)+1,X
+	STA	SCREEN1+(3*40),X
+	LDA	NYBBLE+(3*40)+1,X
+	STA	NYBBLE+(3*40),X
+
+	LDA	SCREEN1+(4*40)+1,X
+	STA	SCREEN1+(4*40),X
+	LDA	NYBBLE+(4*40)+1,X
+	STA	NYBBLE+(4*40),X
+
+	LDA	SCREEN1+(5*40)+1,X
+	STA	SCREEN1+(5*40),X
+	LDA	NYBBLE+(5*40)+1,X
+	STA	NYBBLE+(5*40),X
+
+	LDA	SCREEN1+(6*40)+1,X
+	STA	SCREEN1+(6*40),X
+	LDA	NYBBLE+(6*40)+1,X
+	STA	NYBBLE+(6*40),X
+
+	LDA	SCREEN1+(7*40)+1,X
+	STA	SCREEN1+(7*40),X
+	LDA	NYBBLE+(7*40)+1,X
+	STA	NYBBLE+(7*40),X
+
+	INX
+	CPX	#39
+	BNE	!LOOP1
+	LDX	#0
+!LOOP2
+	LDA	SCREEN1+(8*40)+1,X
+	STA	SCREEN1+(8*40),X
+	LDA	NYBBLE+(8*40)+1,X
+	STA	NYBBLE+(8*40),X
+
+	LDA	SCREEN1+(9*40)+1,X
+	STA	SCREEN1+(9*40),X
+	LDA	NYBBLE+(9*40)+1,X
+	STA	NYBBLE+(9*40),X
+
+	LDA	SCREEN1+(10*40)+1,X
+	STA	SCREEN1+(10*40),X
+	LDA	NYBBLE+(10*40)+1,X
+	STA	NYBBLE+(10*40),X
+
+	LDA	SCREEN1+(11*40)+1,X
+	STA	SCREEN1+(11*40),X
+	LDA	NYBBLE+(11*40)+1,X
+	STA	NYBBLE+(11*40),X
+
+	LDA	SCREEN1+(12*40)+1,X
+	STA	SCREEN1+(12*40),X
+	LDA	NYBBLE+(12*40)+1,X
+	STA	NYBBLE+(12*40),X
+	INX
+	CPX	#39
+	BNE	!LOOP2
+
+	LDX	#0
+!LOOP3	LDA	SCREEN1+(13*40)+1,X
+	STA	SCREEN1+(13*40),X
+	LDA	NYBBLE+(13*40)+1,X
+	STA	NYBBLE+(13*40),X
+
+	LDA	SCREEN1+(14*40)+1,X
+	STA	SCREEN1+(14*40),X
+	LDA	NYBBLE+(14*40)+1,X
+	STA	NYBBLE+(14*40),X
+
+	LDA	SCREEN1+(15*40)+1,X
+	STA	SCREEN1+(15*40),X
+	LDA	NYBBLE+(15*40)+1,X
+	STA	NYBBLE+(15*40),X
+
+	INX
+	CPX	#39
+	BNE	!LOOP3
+
+	JSR	PLOTDOWNRIGHT
+
+	JMP	RETURN_NMI
+
+	; copy screen one line down screen to screen+40
+COPYDOWN	LDX	#39		; boundary
+!LOOP1	LDA	SCREEN1+(9*40),X
+	STA	TEMPAREA,X
+	LDA	NYBBLE+(9*40),X
+	STA	TEMPAREA1,X
+
+	LDA	SCREEN1+(8*40),X
+	STA	SCREEN1+(9*40),X
+	LDA	NYBBLE+(8*40),X
+	STA	NYBBLE+(9*40),X
+
+	LDA	SCREEN1+(7*40),X
+	STA	SCREEN1+(8*40),X
+	LDA	NYBBLE+(7*40),X
+	STA	NYBBLE+(8*40),X
+
+	LDA	SCREEN1+(6*40),X
+	STA	SCREEN1+(7*40),X
+	LDA	NYBBLE+(6*40),X
+	STA	NYBBLE+(7*40),X
+
+	LDA	SCREEN1+(5*40),X
+	STA	SCREEN1+(6*40),X
+	LDA	NYBBLE+(5*40),X
+	STA	NYBBLE+(6*40),X
+
+	LDA	SCREEN1+(4*40),X
+	STA	SCREEN1+(5*40),X
+	LDA	NYBBLE+(4*40),X
+	STA	NYBBLE+(5*40),X
+
+	LDA	SCREEN1+(3*40),X
+	STA	SCREEN1+(4*40),X
+	LDA	NYBBLE+(3*40),X
+	STA	NYBBLE+(4*40),X
+
+	LDA	SCREEN1+(2*40),X
+	STA	SCREEN1+(3*40),X
+	LDA	NYBBLE+(2*40),X
+	STA	NYBBLE+(3*40),X
+
+	LDA	SCREEN1+(1*40),X
+	STA	SCREEN1+(2*40),X
+	LDA	NYBBLE+(1*40),X
+	STA	NYBBLE+(2*40),X
+
+	LDA	SCREEN1+(0*40),X
+	STA	SCREEN1+(1*40),X
+	LDA	NYBBLE+(0*40),X
+	STA	NYBBLE+(1*40),X
+	DEX
+	BPL	!LOOP1
+
+	JSR	PLOTACROSSTOP	; top line data
+
+	LDX	#39
+!LOOP2	LDA	SCREEN1+(14*40),X
+	STA	SCREEN1+(15*40),X
+	LDA	NYBBLE+(14*40),X
+	STA	NYBBLE+(15*40),X
+
+	LDA	SCREEN1+(13*40),X
+	STA	SCREEN1+(14*40),X
+	LDA	NYBBLE+(13*40),X
+	STA	NYBBLE+(14*40),X
+
+	LDA	SCREEN1+(12*40),X
+	STA	SCREEN1+(13*40),X
+	LDA	NYBBLE+(12*40),X
+	STA	NYBBLE+(13*40),X
+
+	LDA	SCREEN1+(11*40),X
+	STA	SCREEN1+(12*40),X
+	LDA	NYBBLE+(11*40),X
+	STA	NYBBLE+(12*40),X
+
+	LDA	SCREEN1+(10*40),X
+	STA	SCREEN1+(11*40),X
+	LDA	NYBBLE+(10*40),X
+	STA	NYBBLE+(11*40),X
+
+	LDA	TEMPAREA,X
+	STA	SCREEN1+(10*40),X
+	LDA	TEMPAREA1,X
+	STA	NYBBLE+(10*40),X
+
+	DEX
+	BPL	!LOOP2
+
+	JMP	RETURN_NMI
+
+	; copy one char line from screen+40 to screen
+COPYUP	LDX	#39
+!LOOP1	LDA	SCREEN1+(1*40),X
+	STA	SCREEN1+(0*40),X
+	LDA	NYBBLE+(1*40),X
+	STA	NYBBLE+(0*40),X
+
+	LDA	SCREEN1+(2*40),X
+	STA	SCREEN1+(1*40),X
+	LDA	NYBBLE+(2*40),X
+	STA	NYBBLE+(1*40),X
+
+	LDA	SCREEN1+(3*40),X
+	STA	SCREEN1+(2*40),X
+	LDA	NYBBLE+(3*40),X
+	STA	NYBBLE+(2*40),X
+
+	LDA	SCREEN1+(4*40),X
+	STA	SCREEN1+(3*40),X
+	LDA	NYBBLE+(4*40),X
+	STA	NYBBLE+(3*40),X
+
+	LDA	SCREEN1+(5*40),X
+	STA	SCREEN1+(4*40),X
+	LDA	NYBBLE+(5*40),X
+	STA	NYBBLE+(4*40),X
+
+	LDA	SCREEN1+(6*40),X
+	STA	SCREEN1+(5*40),X
+	LDA	NYBBLE+(6*40),X
+	STA	NYBBLE+(5*40),X
+
+	LDA	SCREEN1+(7*40),X
+	STA	SCREEN1+(6*40),X
+	LDA	NYBBLE+(7*40),X
+	STA	NYBBLE+(6*40),X
+
+	LDA	SCREEN1+(8*40),X
+	STA	SCREEN1+(7*40),X
+	LDA	NYBBLE+(8*40),X
+	STA	NYBBLE+(7*40),X
+	DEX
+	BPL	!LOOP1
+
+	LDX	#39
+!LOOP2	LDA	SCREEN1+(9*40),X
+	STA	SCREEN1+(8*40),X
+	LDA	NYBBLE+(9*40),X
+	STA	NYBBLE+(8*40),X
+
+	LDA	SCREEN1+(10*40),X
+	STA	SCREEN1+(9*40),X
+	LDA	NYBBLE+(10*40),X
+	STA	NYBBLE+(9*40),X
+
+	LDA	SCREEN1+(11*40),X
+	STA	SCREEN1+(10*40),X
+	LDA	NYBBLE+(11*40),X
+	STA	NYBBLE+(10*40),X
+
+	LDA	SCREEN1+(12*40),X
+	STA	SCREEN1+(11*40),X
+	LDA	NYBBLE+(12*40),X
+	STA	NYBBLE+(11*40),X
+
+	LDA	SCREEN1+(13*40),X
+	STA	SCREEN1+(12*40),X
+	LDA	NYBBLE+(13*40),X
+	STA	NYBBLE+(12*40),X
+	DEX
+	BPL	!LOOP2
+
+	LDX	#39
+!LOOP3	LDA	SCREEN1+(14*40),X
+	STA	SCREEN1+(13*40),X
+	LDA	NYBBLE+(14*40),X
+	STA	NYBBLE+(13*40),X
+
+	LDA	SCREEN1+(15*40),X
+	STA	SCREEN1+(14*40),X
+	LDA	NYBBLE+(15*40),X
+	STA	NYBBLE+(14*40),X
+	DEX
+	BPL	!LOOP3
+
+	JSR	PLOTACROSSBOT	; plot across at bottom of screen
+
+	JMP	RETURN_NMI
+
+TEMPAREA	DS	40,0
+TEMPAREA1	DS	40,0
+
+****************************************
+*	MAP Ripley TO SCREEN	*
+****************************************
+	; TOP left x screen in PIXEL_XL,XH
+	; TOP left y screen in PIXEL_YL,YH
+	; remembering that sprite 0,0 is not left x and top y
+	; part of screen. So sprite start offsets must be added
+
+	; clipping for outside window done when coords are worked out
+	; rather than play with 16 bit minus numbers (lazy bones)
+	; map ripley to screen cords
+	; ripley map x ( RIPLEY_XL & RIPLEY_XH )
+	; ripley map y ( RIPLEY_YL & RIPLEY_YH )
+	; screen x ( PIXEL_XL & PIXEL_XH )
+	; screen y ( PIXEL_YL & PIXEL_YH )
+
+	; ripley map - screen for position (ripley allways the greater)
+RIPLEY_TO_SCREEN	LDA	RIPLEY_XL	; ripley map x low
+	SEC
+	SBC	PIXEL_XL		; screen top left
+	TAX			; temp answer in x
+	LDA	RIPLEY_XH		; ripley map x hi
+	SBC	PIXEL_XH		; top left screen
+	STA	RIPLEY_MSB		; save to msb
+	TXA			; get back temp
+	CLC
+	ADC	#START_LEFT_X	; start of left edge
+	STA	RIPLEY_X		; now is cord for ripley on screen
+	LDA	RIPLEY_MSB		; correct msb for ripley
+	ADC	#0
+	STA	RIPLEY_MSB
+
+	LDA	RIPLEY_YL		; ripley cord y lo
+	SEC
+	SBC	PIXEL_YL		; screen cord
+	CLC			; ignore high (as ripley allway visible)
+START1	ADC	#START_TOP_Y-1	; from visible place
+	STA	RIPLEY_Y		; to screen
+
+	LDX	FRAME		; get ripleys frame
+	BIT	DIR		; ripley faceing
+	BPL	!RIGHT
+	LDA	LEXTRA,X		; use extra
+	BEQ	AS_BULLET		; use sprite as a bullet (or blank)
+	BNE	GET_ON		; use this value
+!RIGHT	LDA	REXTRA,X		; use extra sprite for this frame
+	BEQ	AS_BULLET		; 0 ignore so use bullet frame and pos.
+GET_ON	TAX
+	JSR	APPEND		; part of sprite so position it relitive to ripley
+	NOW			; ignore the frame load
+AS_BULLET	LDX	BU_FRAME		; bullet frame
+	LDA	BULLET_COLR,X
+	STA	SPC0		; set colour
+	LDA	BULLET_POINTER,X
+	STA	SPRITE0		; set amination frame
+	CMP	#ET		; sprite for bullet
+	BNE	NOPOKE_IN		; no, otherwise poke data to pointer
+	LDA	LI1,X		; Y is number
+	STA	EXTRA_SPR+(0*3)
+	LDA	LI2,X
+	STA	EXTRA_SPR+(1*3)
+	LDA	LI3,X
+	STA	EXTRA_SPR+(2*3)
+	LDA	LI4,X
+	STA	EXTRA_SPR+(3*3)
+	LDA	LI5,X
+	STA	EXTRA_SPR+(4*3)
+	LDA	LI6,X
+	STA	EXTRA_SPR+(5*3)
+	LDA	LI7,X
+	STA	EXTRA_SPR+(6*3)
+
+NOPOKE_IN	LDA	BULLET_XL		; bullet map x low
+	SEC
+	SBC	PIXEL_XL		; screen top left
+	TAX			; temp answer in x
+	LDA	BULLET_XH		; bullet map x hi
+	SBC	PIXEL_XH		; top left screen
+	STA	BULLET_MSB		; set msb
+	TXA			; get back temp
+	CLC
+	ADC	#START_LEFT_X	; start of left edge
+	STA	X0		; now is sprite cord
+	LDA	BULLET_MSB		; x high byte
+	ADC	#0
+	CMP	#2
+	BCS	OF_SCREEN
+	ADC	#0
+	STA	BULLET_MSB
+	LDA	BULLET_YL		; bullet cord y lo
+	SEC
+	SBC	PIXEL_YL		; screen pixel cord
+	TAX			; use x as temp save
+	LDA	BULLET_YH
+	SBC	PIXEL_YH		; distance > 256 then dont display
+	BNE	OF_SCREEN		; on screen
+	TXA			; get back save
+	CLC			; ignore high
+START2	ADC	#START_TOP_Y-1
+	JMP	ON_SCREEN
+OF_SCREEN	LDA	#0
+	STA	BULLET_MSB		; zap out msb when off
+ON_SCREEN	STA	Y0		; to sprite position
+
+	LDX	FRAME		; ripleys frame again
+	LDA	RIPLEY_Y		; both sprites on same line
+	CLC
+	ADC	#21		; legs place firstly
+	STA	Y2
+	SEC			; head needs some adjustment
+	SBC	YOFF,X		; where head will go
+	STA	Y1		; now sprite code
+
+	LDA	XOFF,X		; get adjustment
+	BIT	DIR		; get faceing direction
+	BPL	FACE_RIGHT
+	CMP	#0
+	BPL	TAKE_OFF
+	EOR	#255
+	CLC
+	ADC	#1
+	JMP	ADDED_ON
+
+TAKE_OFF	STA	ANSWERL		; amount to take
+	LDA	RIPLEY_X		; sprite pos
+	STA	X2		; now set
+	SEC			; head pos is offset
+	SBC	ANSWERL		; where head will go
+	STA	X1		; first sprite next to legs
+	PHP			; save carry
+	LDA	RIPLEY_MSB		; normal msb
+	ASL	A		; * 2 for sprite 2
+	ASL	A
+	STA	MSB		; set second msb byte
+	PLP			; old carry
+	LDA	RIPLEY_MSB		; set other half
+	SBC	#0		; msb
+	JMP	SET_ON
+
+FACE_RIGHT	CMP	#0
+	BPL	ADDED_ON
+	EOR	#255
+	CLC
+	ADC	#1
+	JMP	TAKE_OFF
+
+ADDED_ON	STA	ANSWERL		; same as before but added pos to legs
+	LDA	RIPLEY_X
+	STA	X2
+	CLC
+	ADC	ANSWERL
+	STA	X1		; first sprite next to legs
+	PHP			; save carry
+	LDA	RIPLEY_MSB
+	ASL	A
+	ASL	A
+	STA	MSB		; set second msb byte
+	PLP
+	LDA	RIPLEY_MSB 
+	ADC	#0
+SET_ON	ASL	A		; all to sprite 1 and 2
+	ORA	MSB
+	ORA	BULLET_MSB
+	STA	MSB		; set
+
+	BIT	DIR		; way faceing 0 right, 255 left
+	BPL	!FACE_RI
+	LDA	LHEAD,X
+	STA	SPRITE1
+	LDA	LLEGS,X
+	STA	SPRITE2
+	RTS
+
+!FACE_RI	LDA	RHEAD,X
+	STA	SPRITE1
+	LDA	RLEGS,X
+	STA	SPRITE2
+	RTS
+
+	; head frames faceing right	
+RHEAD	DB	BL																; blank
+	DB	R2+0,R2+1,R2+2,R2+3,R2+4,R2+5							; stand & fire.
+	DB	R2+0,R2+1,R2+2,R2+3,R2+4,R2+5       ; duck  & fire.
+	DB	R2+0,R2+1,R2+0,R2+1,R2+0,R2+1							; running & fire forwards
+	DB	R2+0,R2+1,R2+0,R2+1,R2+0,R2+1
+	DB	R2+2,R2+3,R2+2,R2+3,R2+2,R2+3							; running & fire upwards
+	DB	R2+2,R2+3,R2+2,R2+3,R2+2,R2+3
+	DB	R2+4,R2+5,R2+4,R2+5,R2+4,R2+5       ; running & fire downwards
+	DB	R2+4,R2+5,R2+4,R2+5,R2+4,R2+5
+	DB	R5																; jump head
+	DB	R6+0																; get onto ladder
+	DB	CS+0																; hand on ladder
+	DB	CS+14,CS+16,CS+17				           ; fire on ladder up & down
+	DB	CS+1,CS+2,CS+3,CS+4,CS+5,CS+6	      ; climb on ladder
+	DB	R7+6,R7+7,R7+8,R7+9,R7+10,R7+11					; crawl along floor
+	DB	R7+12																; lob grenade from crawl
+	DB	R8+0,R8+1,R8+2				           ; lob grenade from stand
+	DB	R9+0,R9+1																; crawl to tunnel
+	DB	R9+3,R9+4																; tunnel to ladder
+	DB	RA+0,RA+5,RA+8,RA+9								  					; die forwards
+	DB	RA+2,RA+10,RA+12,RA+13									 				; die backwards
+	DB	RB+0,RB+2,RB+5,RB+7															; down slope
+	DB	CR+2,CR+1															 ; crawl turn in duct
+	DB	LC+0
+	DB	RD				            ; crawl fire in duck
+	DB	RD
+
+RLEGS	DB	BL
+	DB	R1+0,R1+0,R1+0,R1+0,R1+0,R1+0
+	DB	R1+1,R1+1,R1+1,R1+1,R1+1,R1+1
+	DB	R4+0,R4+0,R4+1,R4+1,R4+2,R4+2
+	DB	R4+3,R4+3,R4+4,R4+4,R4+5,R4+5
+	DB	R4+0,R4+0,R4+1,R4+1,R4+2,R4+2
+	DB	R4+3,R4+3,R4+4,R4+4,R4+5,R4+5
+	DB	R4+0,R4+0,R4+1,R4+1,R4+2,R4+2
+	DB	R4+3,R4+3,R4+4,R4+4,R4+5,R4+5
+	DB	R5+1
+	DB	R6+1
+	DB	CS+7
+	DB	CS+7,CS+18,CS+19
+	DB	CS+8,CS+9,CS+10,CS+11,CS+12,CS+13
+	DB	R7+0,R7+1,R7+2,R7+3,R7+4,R7+5
+	DB	R7+2
+	DB	R8+3,R8+4,R8+5
+	DB	CS+8,R9+2
+	DB	R9+5,R9+6
+	DB	RA+1,RA+4,RA+6,RA+7
+	DB	RA+3,RA+11,RA+14,RA+15
+	DB	RB+1,RB+3,RB+4,RB+6
+	DB	BL,BL
+	DB	L1+0
+	DB	R7+0
+	DB	R7+0
+
+REXTRA	DB	0		; blank
+	DB	0,10,0,11,0,12	; stand & fire.
+	DB	0,16,0,17,0,18	; duck  & fire.
+
+	DB	0,10,0,26,0,27	; running & fire forwards
+	DB	0,10,0,26,0,27	; running & fire forwards
+	DB	0,11,0,30,0,31	; running & fire upwards
+	DB	0,11,0,30,0,31	; running & fire upwards
+	DB	0,12,0,34,0,35	; running & fire downwards
+	DB	0,12,0,34,0,35	; running & fire downwards
+
+	DB	0		; jump head
+	DB	0		; get onto ladder
+	DB	0		; hand on ladder
+	DB	38,0,39		; fire ladder
+	DB	0,0,0,0,0,0		; climb on ladder
+	DB	0,0,0,0,0,0		; crawl along floor
+	DB	0		; lob grenade from crawl
+	DB	0,0,22		; lob grenade from stand
+	DB	0,0		; crawl to tunnel
+	DB	0,0		; tunnel to ladder
+	DB	0,0,0,0		; die forwards
+	DB	0,0,0,0		; die backwards
+	DB	0,0,0,0		; slide slope
+	DB	0,0
+	DB	0
+	DB	0
+	DB	24		; crawl fire
+
+LEXTRA	DB	0		; blank
+	DB	0,13,0,14,0,15	; stand & fire.
+	DB	0,19,0,20,0,21	; duck  & fire.
+
+	DB	0,13,0,28,0,29	; running & fire forwards
+	DB	0,13,0,28,0,29	; running & fire forwards
+	DB	0,14,0,32,0,33	; running & fire upwards
+	DB	0,14,0,32,0,33	; running & fire upwards
+	DB	0,15,0,36,0,37	; running & fire downwards
+	DB	0,15,0,36,0,37	; running & fire downwards
+
+	DB	0		; jump head
+	DB	0		; get onto ladder
+	DB	0		; hand on ladder
+	DB	38,0,39
+	DB	0,0,0,0,0,0		; climb on ladder
+	DB	0,0,0,0,0,0		; crawl along floor
+	DB	0		; lob grenade from crawl
+	DB	0,0,23		; lob grenade from stand
+	DB	0,0		; crawl to tunnel
+	DB	0,0		; tunnel to ladder
+	DB	0,0,0,0		; die forwards
+	DB	0,0,0,0		; die backwards
+	DB	0,0,0,0		; slide down slope
+	DB	0,0
+	DB	0
+	DB	0
+	DB	25		; crawl fire
+	
+LHEAD	DB	BL
+	DB	L2+0,L2+1,L2+2,L2+3,L2+4,L2+5							; stand & fire.
+	DB	L2+0,L2+1,L2+2,L2+3,L2+4,L2+5       ; duck  & fire.
+	DB	L2+0,L2+1,L2+0,L2+1,L2+0,L2+1							; running & fire forwards
+	DB	L2+0,L2+1,L2+0,L2+1,L2+0,L2+1
+	DB	L2+2,L2+3,L2+2,L2+3,L2+2,L2+3							; running & fire upwards
+	DB	L2+2,L2+3,L2+2,L2+3,L2+2,L2+3
+	DB	L2+4,L2+5,L2+4,L2+5,L2+4,L2+5       ; running & fire downwards
+	DB	L2+4,L2+5,L2+4,L2+5,L2+4,L2+5
+	DB	L5																; jump head
+	DB	L6+0																; get onto ladder
+	DB	CS+0																; hand on ladder
+	DB	CS+14,CS+16,CS+17
+	DB	CS+1,CS+2,CS+3,CS+4,CS+5,CS+6	      ; climb on ladder
+	DB	L7+6,L7+7,L7+8,L7+9,L7+10,L7+11					; crawl along floor
+	DB	L7+12																; lob grenade from crawl
+	DB	L8+0,L8+1,L8+2				           ; lob grenade from stand
+	DB	L9+0,L9+1																; crawl to tunnel
+	DB	L9+3,L9+4																; tunnel to ladder
+	DB	LA+0,LA+5,LA+8,LA+9													  ; die forwards
+	DB	LA+2,LA+10,LA+12,LA+13													 ; die backwards
+	DB	LB+0,LB+2,LB+5,LB+7															; down slope
+	DB	CR+0,CR+1
+	DB	RC+0																; turn around
+	DB	LD
+	DB	LD
+
+LLEGS	DB	BL
+	DB	L1+0,L1+0,L1+0,L1+0,L1+0,L1+0
+	DB	L1+1,L1+1,L1+1,L1+1,L1+1,L1+1
+	DB	L4+0,L4+0,L4+1,L4+1,L4+2,L4+2
+	DB	L4+3,L4+3,L4+4,L4+4,L4+5,L4+5
+	DB	L4+0,L4+0,L4+1,L4+1,L4+2,L4+2
+	DB	L4+3,L4+3,L4+4,L4+4,L4+5,L4+5
+	DB	L4+0,L4+0,L4+1,L4+1,L4+2,L4+2
+	DB	L4+3,L4+3,L4+4,L4+4,L4+5,L4+5
+	DB	L5+1
+	DB	L6+1
+	DB	CS+7
+	DB	CS+7,CS+18,CS+19
+	DB	CS+8,CS+9,CS+10,CS+11,CS+12,CS+13
+	DB	L7+0,L7+1,L7+2,L7+3,L7+4,L7+5
+	DB	L7+2
+	DB	L8+3,L8+4,L8+5
+	DB	CS+8,L9+2
+	DB	L9+5,L9+6
+	DB	LA+1,LA+4,LA+6,LA+7
+	DB	LA+3,LA+11,LA+14,LA+15
+	DB	LB+1,LB+3,LB+4,LB+6
+	DB	BL,BL
+	DB	R1+0
+	DB	L7+0
+	DB	L7+0
+
+	; add to head part for each frame ie add to legs for head pos
+XOFF	DB	00		; blank
+	DB	00,00,00,00,00,00	; stand & stand fire
+	DB	02,02,02,02,02,02	; duck & duck fire
+	DB	00,00,00,00,00,00	; running
+	DB	00,00,00,00,00,00	; running
+	DB	00,00,00,00,00,00	; running
+	DB	00,00,00,00,00,00	; running
+	DB	00,00,00,00,00,00	; running
+	DB	00,00,00,00,00,00	; running
+	DB	00		; jump
+	DB	02		; stride to ladder
+	DB	00		; holding on ladder
+	DB	00,00,00
+	DB	00,00,00,00,00,00	; climb
+	DB	24,24,24,24,24,24	; crawl along floor
+	DB	24		; lob grenade from crawl
+	DB	00,00,00		; lob grenade from stand
+	DB	00,06		; crawl to tunnel
+	DB	8,10		; tunnel to ladder
+	DB	12,24,24,24		; fall forwards
+	DB	-8,-24,-24,-24	; fall backwards	
+	DB	-16,06,12,-8	; down slope
+	DB	00,00
+	DB	00		; turn around
+	DB	24
+	DB	24
+

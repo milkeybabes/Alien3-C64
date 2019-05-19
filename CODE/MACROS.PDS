@@ -1,0 +1,37 @@
+	; slow macros
+TABLELO	MACRO			; FOR A= @2 TO @3 ; VALUE = A*@4+@5
+value	= @2
+@1	DO			; Define Lable
+	DL ((value*@4)+@5)	; Low Byte
+value	= value + 1
+	UNTIL value > @3
+	ENDM
+
+TABLEHI	MACRO			; FOR A= @2 TO @3 ; VALUE = A*@45
+value	= @2
+@1	DO			; Define Lable
+	DH ((value*@4)+@5)
+value	= value + 1
+	UNTIL value > @3
+	ENDM
+
+	; create table 0 TO 127 :BYTE= @1*count+MAPSTART low and hi
+TAB	MACRO
+	TABLELO	GMAP_L,0,127,@1,MAPSTART	; Y tab mem lo
+	TABLEHI	GMAP_H,0,127,@1,MAPSTART	; Y tab mem hi
+	ENDM
+
+NOB	MACRO
+	DB	&24		; BIT xx
+	ENDM
+
+NOW	MACRO
+	DB	&2C		; BIT xx xx
+	ENDM
+
+ZP	MACRO
+@1	EQU	VARS
+VARS	= VARS+@2
+	ENDM
+
+VARS	=	1

@@ -1,0 +1,1155 @@
+	; plot tile block at character X,Y on screen, A as block
+PLOT_TILE	STA	TEMP
+	JSR	WORK_MEMS
+	JMP	DOIT_PLOT
+	; plot tile block at tileX,tileY reletive from map, and A as block
+PLOT_BLOCK
+	STA	TEMP
+	JSR	GET_MEM		; work screen position
+DOIT_PLOT	LDX	TEMP		; get index for plottin
+	LDY	#0
+	LDA	TILE_TL,X
+	STA	(MIKE1),Y
+	LDA	TCOL_TL,X
+	STA	(MIKE2),Y
+	INY
+	LDA	TILE_TR,X
+	STA	(MIKE1),Y
+	LDA	TCOL_TR,X
+	STA	(MIKE2),Y
+	LDY	#40
+	LDA	TILE_BL,X
+	STA	(MIKE1),Y
+	LDA	TCOL_BL,X
+	STA	(MIKE2),Y
+	INY
+	LDA	TILE_BR,X
+	STA	(MIKE1),Y
+	LDA	TCOL_BR,X
+	STA	(MIKE2),Y
+	RTS
+
+GET_MEM	TYA			; wanted tile position
+	SEC
+	SBC	YOFFSET		; from top of map
+	ASL	A		; * 2 for char position on screen
+	TAY			; now y off
+	LDA	TINY		; scroll y offset
+	BEQ	!SKIP1		; when = 8 bottom half on top line
+	DEY			; so tile wil be up one char position
+!SKIP1	TXA
+	SEC
+	SBC	XOFFSET
+	ASL	A
+	TAX
+	LDA	TINX		; scroll x offset
+	BEQ	WORK_MEMS		; when = 8 
+	DEX			; tile will be one char along
+WORK_MEMS	TXA
+	CLC
+	ADC	SMAPL,Y		; screen low
+	STA	MIKE1
+	STA	MIKE2
+	LDA	SMAPH,Y		; screen high
+	ADC	#0
+	STA	MIKE1+1
+	SBC	#<(SCREEN1-NYBBLE)-256	; to colour memory
+	STA	MIKE2+1
+	RTS
+
+	; blow up door from pulse grenades
+BLOW_DOOR	; get rid of door
+	LDA	LEV_BYTE
+	CMP	#3
+	BEQ	NO_BLOWDOR
+	LDX	#255
+	; find this door in table
+FIND_DOOR	INX
+	LDA	MIKE1		; bullets x tile position
+	CMP	DOOR_X,X		; this door
+	BNE	FIND_DOOR		; must be in this list (hope so)
+	LDA	DOOR_Y,X
+	TAY			; save for latter
+	CLC
+	ADC	#1
+	CMP	MIKE2
+	BCC	FIND_DOOR		; must be another door
+	SBC	DOOR_SIZE,X		; was #6 ; top of door
+	CMP	MIKE2
+	BCS	FIND_DOOR
+	LDA	DOOR_SIZE,X		; length of door
+	;BMI	NO_BLOWDOR		; not able to blow door up (roomlevel)
+	STA	MIKE1
+	ORA	#128		; take out dont close bit
+	STA	DOOR_SIZE,X
+	LDA	DOOR_X,X		; door start x position
+	TAX			; x now have x offset
+ALL_DOORL	LDA	GMAP_L+1,Y		; map memory low
+	STA	!PLACE+1
+	LDA	GMAP_H+1,Y		; map memory hi
+	STA	!PLACE+2
+	LDA	#0		; door there byte
+!PLACE	STA	&FFFF,X
+	DEY			; upward from screen
+	DEC	MIKE1
+	BNE	ALL_DOORL
+	JSR	RE_PLOT		; redraw whole screen map
+	LDA	#6		; door explosion
+	JSR	SETFX
+NO_BLOWDOR	JMP	BLOW_UP
+
+	; shut all doors for start of level, or restart of level
+CLOSE_DOORS
+	LDA	LEV_BYTE
+	CMP	#3		; guardian
+	BNE	AS_NO
+	LDA	#128
+	NOW
+AS_NO	LDA	#0
+	STA	OR_ED+1
+	LDX	#0
+	STX	DOOR_CONTROL	; init control here (does not matter)
+SHUT_DOORS	LDY	DOOR_Y,X		; door x position
+	CPY	#255		; last one in list
+	BEQ	NODOORS
+	STX	MIKE2
+	LDA	DOOR_SIZE,X		; length of door
+	AND	#&7F		; take out dont close bit
+	STA	MIKE1
+OR_ED	ORA	#128		; make door prementaly shut
+AS_SIZE	STA	DOOR_SIZE,X
+	LDA	DOOR_X,X		; door start x position
+	TAX			; x now have x offset
+ALL_DOOR	LDA	GMAP_L+1,Y		; map memory low
+	STA	!PLACE+1
+	LDA	GMAP_H+1,Y		; map memory hi
+	STA	!PLACE+2
+	LDA	#&74		; door there byte
+!PLACE	STA	&FFFF,X
+	DEY			; upward from screen
+	DEC	MIKE1
+	BNE	ALL_DOOR
+	LDX	MIKE2
+	INX
+	JMP	SHUT_DOORS
+
+UPDATE_DOORS
+	; now want to update to door control
+	; ie check door status and continue with required action
+	; close the door
+	; open up door
+	DEC	DOOR_SPEED
+	BNE	NODOORS
+	LDA	#2	;4
+	STA	DOOR_SPEED
+	LDX	DOOR_NUMBER		; get index now
+	LDA	#255
+	BIT	DOOR_CONTROL
+	BEQ	NODOORS
+	BMI	OPEN_DOOR		; 128 open door now
+	BVS	CLOSE_DOOR		; 64 close door now
+	; otherwise wait for a clearence to close door behind ripley
+	LDA	TILE_XPOS		; current position
+	SEC
+	SBC	DOOR_X,X		; get distance
+	BCS	CORRECT
+	EOR	#255
+	ADC	#1
+CORRECT	CMP	#3		; at least 3 blocks away
+	BCC	NODOORS
+	LDA	#64		; set back to close door
+	STA	DOOR_CONTROL
+	LDA	#26		; close the door
+	JSR	SETFX
+NODOORS	RTS
+
+CLOSE_DOOR	DEC	DOOR_POSITION
+	LDA	#&74		; door graphic
+	JSR	DOOR_PLOT
+	LDA	DOOR_POSITION	; reached bottom
+	BNE	NRESETDOOR
+	STA	DOOR_CONTROL	; 0 to control
+NRESETDOOR	RTS
+
+OPEN_DOOR	LDA	#0		; blank out door
+	JSR	DOOR_PLOT
+	INC	DOOR_POSITION
+	LDX	DOOR_NUMBER		; get back door no
+	LDA	DOOR_POSITION
+	CMP	DOOR_SIZE,X		; length of door
+	BNE	NTOP_DOOR
+	STA	DOOR_CONTROL	; not matter what number
+NTOP_DOOR	RTS
+
+DOOR_PLOT	STA	WHAT+1
+	LDA	DOOR_Y,X		; door y position
+	SEC
+	SBC	DOOR_POSITION
+	TAY
+	LDA	GMAP_L+1,Y		; map memory low
+	STA	PLACE+1
+	LDA	GMAP_H+1,Y		; map memory hi
+	STA	PLACE+2
+	LDA	DOOR_X,X
+	TAX
+WHAT	LDA	#255		; poke byte smc
+PLACE	STA	&FFFF,X
+	JMP	RE_PLOT		; redraw whole screen map
+
+****************************************
+*	collision detection	*
+****************************************
+EN_OFF	EQU	1		; table offset for enemy
+
+BULLET_HIT	JSR	BULLET_COLLIDE	; set collide params
+	LDX	#MAX_SPRITES-3	; check all enemy not, prisoner
+KILL_ALL	LDA	ENEMY_TYPE,X	; available
+	BEQ	ENIGMA		; try next one
+	CMP	#1		; dummy half entry for twoer
+	BEQ	ENIGMA
+	CMP	#7		; guardian check
+	BEQ	GU_CHK
+	LDA	ENEMY_DAMAGE,X	; killed already (energy as indicator)
+	BEQ	ENIGMA		; leave alone
+	JSR	ENEMY_HIT		; a collision occured ?
+HIT_GUARD	BCC	ENIGMA		; no hit
+	LDY	WEAPON_FIRED	; current weapon being fired
+	LDA	ENEMY_DAMAGE,X	; have a collision
+	SEC			; now inflict some damage
+	SBC	KILL_FACTOR-1,Y	; start at 1 
+	BCS	TUFF_NUT
+	LDA	#0		; less than 0 set to 0
+TUFF_NUT	STA	ENEMY_DAMAGE,X	; more hits or dead.
+	LDA	CARRY_ON_HIT-1,Y	; able to hit some more
+	BNE	ENIGMA
+	SEC
+	RTS
+ENIGMA	DEX
+	BPL	KILL_ALL
+NOTHR	CLC			; leave for one hit returns
+	RTS
+
+KILL_FACTOR
+	DB	1		; pulse rifle bullet (one / hit)
+	DB	3		; flame thrower (will check quickly)
+	DB	0		; pulse grenade damage (expl. do rest)
+	DB	0		; no detection for thrown grenade
+	DB	3		; explosion for grenades (both types)
+CARRY_ON_HIT
+	DB	0,1,0,1,1		; one for pulse, and stop pusle grenade
+
+GU_CHK	LDY	#45
+	BIT	ENEMY_XDIR		; what way faceing
+	BMI	!SEGA
+	INY
+!SEGA	JSR	DO_CHEK
+	JMP	HIT_GUARD
+
+PRIS_CHECK	LDA	FRAME		; (may be mode to scroll to prisioners)
+	BEQ	NOTHR		; no hit ripley then	ok.
+	LDY	#43		; table index allways the same
+	NOW
+DRIP_HIT	LDY	#44		; acid dropley
+	NOW
+SPIT_HIT	LDY	#42		; alien spit
+	NOW
+ENEMY_HIT	LDY	ENEMY_FRAME,X	; get sprite frame
+DO_CHEK	LDA	EXADD-EN_OFF,Y	; get offset for sprite
+	BPL	!ADDED
+	CLC
+	ADC	ENEMY_XL,X
+	STA	MIKE1
+	LDA	ENEMY_XH,X
+	SBC	#0
+	JMP	ZORRO
+
+!ADDED	CLC
+	ADC	ENEMY_XL,X		; current map of enemy
+	STA	MIKE1		; left side little add in
+	LDA	ENEMY_XH,X		; enemy x high
+	ADC	#0
+ZORRO	STA	MIKE1+1		; now have left of enemy
+	LDA	MIKE1
+	CLC
+	ADC	EXLENGTH-EN_OFF,Y	; length of enemy x to check
+	STA	MIKE2		; low right
+	LDA	MIKE1+1
+	ADC	#0
+	STA	MIKE2+1		; high right
+	; have now got left and right sides of enemy map position
+
+	; Ripley left with Enemy left
+	LDA	COLLIDE_LL
+	SEC
+	SBC	MIKE1
+	LDA	COLLIDE_LH
+	SBC	MIKE1+1
+	BCC	OT1		; no A less than C
+	; Enemy right with Ripley left
+	LDA	MIKE2
+	SEC
+	SBC	COLLIDE_LL
+	LDA	MIKE2+1
+	SBC	COLLIDE_LH
+	BCS	CHECK_Y		; in range
+QUICK_EXIT	RTS
+
+	; now A>=C so check
+OT1	; Ripley right with Enemy left
+	LDA	COLLIDE_RL
+	SEC
+	SBC	MIKE1
+	LDA	COLLIDE_RH
+	SBC	MIKE1+1
+	BCC	QUICK_EXIT
+
+CHECK_Y	LDA	ENEMY_YL,X		; current map of enemy
+	CLC
+	ADC	EYADD-EN_OFF,Y	; sprite pointer offset
+	STA	MIKE1		; top side little add in
+	LDA	ENEMY_YH,X		; enemy y high
+	ADC	#0
+	STA	MIKE1+1		; now have left of enemy
+RESTP	LDA	MIKE1
+	CLC
+	ADC	EYLENGTH-EN_OFF,Y	; length of enemy y to check
+	STA	MIKE2		; low right
+	LDA	MIKE1+1
+	ADC	#0
+	STA	MIKE2+1		; high right
+
+	; Ripley top with Enemy top
+	LDA	COLLIDE_TL
+	SEC
+	SBC	MIKE1
+	LDA	COLLIDE_TH
+	SBC	MIKE1+1
+	BCC	OT11		; no A less than C
+	; Enemy bottom with Ripley top
+	LDA	MIKE2
+	SEC
+	SBC	COLLIDE_TL
+	LDA	MIKE2+1
+	SBC	COLLIDE_TH
+	RTS
+
+	; now A>=C so check
+OT11	LDA	COLLIDE_BL		; B>C C=1 hit C=0 miss
+	SEC
+	SBC	MIKE1
+	LDA	COLLIDE_BH
+	SBC	MIKE1+1
+	RTS
+
+	; enemy add x in for detection (0 full sprite)
+EXADD	DB	08,08,08,08,08,08	; face left
+	DB	00,00,00,00,00,00	; left backside (no check)
+	DB	-8,-8,-8,-8,-8,-8	; face right
+	DB	00,00,00,00,00,00	; face right backside (no check)
+
+	DB	00,00,00,00		; out of ground left
+	DB	00,00,00,00		; out of ground right
+	DB	00,00,-24,00	; roffer
+	DB	00,00,-24,00	; roffer fall
+
+	DB	10		; 41 lift
+	DB	08		; 42 acid spit (start at1)
+	DB	00		; 43 prisoner all same detection
+	DB	00		; 44 drips
+	DB	00		; 45 guardian left face
+	DB	-24		; 46 guardian right face	
+
+	; length of sprite to check (24 full sprite)
+EXLENGTH	DB	30,30,30,30,30,30
+	DB	00,00,00,00,00,00
+	DB	30,30,30,30,30,30
+	DB	00,00,00,00,00,00
+
+	DB	00,00,00,00		; out of ground left
+	DB	00,00,00,00		; out of ground right
+	DB	48,00,48,00
+	DB	48,00,48,00
+
+	DB	02		; lift
+	DB	08		; alien spit
+	DB	24		; prisoner all same detection
+	DB	02		; acid
+	DB	48		; guardian
+	DB	48		; guardian
+
+	; enemy add in y for detection (0 full sprite)
+EYADD	DB	00,00,00,00,00,00
+	DB	00,00,00,00,00,00
+	DB	00,00,00,00,00,00
+	DB	00,00,00,00,00,00
+
+	DB	00,00,00,00
+	DB	00,00,00,00
+	DB	00,00,00,00
+	DB	00,00,00,00
+
+	DB	03
+	DB	00		; alien spit
+	DB	00		; prisoner all same detection
+	DB	00		; acid
+	DB	00		; guardian
+	DB	00		; guardian
+
+	; length of sprite to check (21 full sprite)
+EYLENGTH	DB	21,21,21,21,21,21
+	DB	00,00,00,00,00,00
+	DB	21,21,21,21,21,21
+	DB	00,00,00,00,00,00
+
+	DB	00,00,00,00
+	DB	00,00,00,00
+	DB	21,00,21,00
+	DB	21,00,21,00
+
+	DB	18
+	DB	06		; alien spit	
+	DB	21		; prisoner all same detection
+	DB	04		; acid
+	DB	42		; guardian
+	DB	42		; guardian
+
+	; bullet add x in for detection (0 full sprite)
+BXADD	DB	00		; blank
+	DB	00,00,00,00		; copyied in graphic
+	DB	02,00,00,00,00	; grenades
+	DB	10,10,10		; pulse flames right
+	DB	00,00,00		; pulse flames left
+	DB	10,10,10		; pulse flames right (Duck Action)
+	DB	00,00,00		; pulse flames left
+	DB	00,00		; bits of ripley
+	DB	00,00		; bits of ripley
+
+	DB	10,10		; pulse flames right
+	DB	00,00		; pulse flames left
+	DB	10,10		; pulse flames right
+	DB	00,00		; pulse flames left
+	DB	10,10		; pulse flames right
+	DB	00,00		; pulse flames left
+
+	DB	00,00		; bits of ripley
+
+	DB	00,00,00,00		; fire flames right
+	DB	00,00,00,00		; fire flames left
+	DB	00,00,00,00		; fire flames up
+	DB	00,00,00,00		; fire flames down
+
+	DB	08,08,08,08		; explosion 1
+
+BXLENGTH	DB	08		; blank
+	DB	08,08,08,08		; copyied in graphic
+	DB	04,08,08,08,08	; grenades
+	DB	14,14,14		; pulse flames right
+	DB	14,14,14		; pulse flames left
+	DB	14,14,14		; pulse flames right (Duck Action)
+	DB	14,14,14		; pulse flames left
+	DB	00,00		; bits of ripley
+	DB	00,00		; bits of ripley
+
+	DB	14,14		; pulse flames right
+	DB	14,14		; pulse flames left
+	DB	14,14		; pulse flames right
+	DB	14,14		; pulse flames left
+	DB	14,14		; pulse flames right
+	DB	14,14		; pulse flames left
+
+	DB	00,00		; bits of ripley
+
+	DB	24,24,24,24		; fire flames right
+	DB	24,24,24,24		; fire flames left
+	DB	24,24,24,24		; fire flames up
+	DB	24,24,24,24		; fire flames down
+
+	DB	08,08,08,08		; explosion 1
+
+BYADD	DB	02		; blank
+	DB	00,00,00,00		; copyied in graphic
+	DB	00,00,02,00,00,02	; grenades
+	DB	10,02,13		; pulse flames right
+	DB	10,02,13		; pulse flames left
+	DB	10,02,13		; pulse flames right (Duck Action)
+	DB	10,02,13		; pulse flames left
+	DB	00,00		; bits of ripley
+	DB	00,00		; bits of ripley
+
+	DB	10,10		; pulse flames right
+	DB	10,10		; pulse flames left
+	DB	02,02		; pulse flames right
+	DB	02,02		; pulse flames left
+	DB	13,13		; pulse flames right
+	DB	13,13		; pulse flames left
+
+	DB	00,00		; bits of ripley
+
+	DB	00,00,00,00		; fire flames right
+	DB	00,00,00,00		; fire flames left
+	DB	00,00,00,00		; fire flames up
+	DB	00,00,00,00		; fire flames down
+
+	DB	04,05,04,04		; explosion 1
+
+BYLENGTH	DB	03		; blank
+	DB	07,07,04,04		; copyied in graphic
+	DB	06,06,06,06,03	; grenades
+	DB	07,07,07		; pulse flames right
+	DB	07,07,07		; pulse flames left
+	DB	07,07,07		; pulse flames right (Duck Action)
+	DB	07,07,07		; pulse flames left
+	DB	00,00		; bits of ripley
+	DB	00,00		; bits of ripley
+
+	DB	07,07		; pulse flames right
+	DB	07,07		; pulse flames left
+	DB	07,07		; pulse flames right
+	DB	07,07		; pulse flames left
+	DB	07,07		; pulse flames right
+	DB	07,07		; pulse flames left
+
+	DB	00,00		; bits of ripley
+
+	DB	21,21,21,21		; fire flames right
+	DB	21,21,21,21		; fire flames left
+	DB	21,21,21,21		; fire flames up
+	DB	21,21,21,21		; fire flames down
+
+	DB	13,11,13,13		; explosion 1
+
+****************************************
+*	Set RIPLEYS collide Params	*
+****************************************
+	; these positions may have to change to replect the true position
+	; as some frames are not on top of each other !!
+RIPLEY_COLLIDE
+	LDA	RIPLEY_XL
+	STA	COLLIDE_LL		; ripley left low as map position
+	CLC
+	ADC	#24		; 12 pixels length *2 for hires
+	STA	COLLIDE_RL		; right low
+	LDA	RIPLEY_XH
+	STA	COLLIDE_LH		; ripley left hi as map position
+	ADC	#0
+	STA	COLLIDE_RH		; right high
+
+	LDA	RIPLEY_YL		; y low
+	STA	COLLIDE_TL
+	CLC
+	ADC	#20+21		; 1 pixel down
+	STA	COLLIDE_BL		; bottom lo
+	LDA	RIPLEY_YH		; top hi
+	STA	COLLIDE_TH
+	ADC	#0
+	STA	COLLIDE_BH		; bottom hi
+	RTS
+
+****************************************
+*	Set BULLET collide Params	*
+****************************************
+BULLET_COLLIDE
+	LDY	BU_FRAME		; sprite frame as index
+	LDA	BULLET_XL		; weapon x
+	CLC
+	ADC	BXADD,Y		; x add table for frame
+	STA	COLLIDE_LL		; left side low
+	LDA	BULLET_XH		; weapon msb
+	ADC	#0
+	STA	COLLIDE_LH		; left side high
+
+	LDA	COLLIDE_LL		; worked left low
+	CLC
+	ADC	BXLENGTH,Y		; length of sprite data
+	STA	COLLIDE_RL		; right side lo
+	LDA	COLLIDE_LH		; worked left hi
+	ADC	#0
+	STA	COLLIDE_RH		; right side hi
+
+	LDA	BULLET_YL		; weapon y
+	CLC
+	ADC	BYADD,Y		; add down
+	STA	COLLIDE_TL		; top low
+	LDA	BULLET_YH
+	ADC	#0
+	STA	COLLIDE_TH		; top high
+
+	LDA	COLLIDE_TL
+	CLC
+	ADC	BYLENGTH,Y		; length down sprite
+	STA	COLLIDE_BL		; bottom low
+	LDA	COLLIDE_TH		; old high
+	ADC	#0
+	STA	COLLIDE_BH		; bottom high
+SAME_LEV	RTS
+
+	IF	DISK_LOADER
+
+****************************************
+*	DISK	LOADER		*	
+****************************************
+DISKZP	EQU	$F0
+DSTATUS	EQU	DISKZP	;disk status fori/o
+BUFFSB	EQU	DISKZP+1	;buffer for serial Weetabix
+COUNTDOWN	EQU	DISKZP+2	;count
+TEMP1D	EQU	DISKZP+3	;temp
+TEMP2	EQU	DISKZP+4	
+C3PO	EQU	DISKZP+5	;flag serial buffer out
+ENDPRG	EQU	DISKZP+6	;word address end address
+COMMAND	EQU	DISKZP+8
+
+	; LOAD use size of file on disk.
+	; interrupts must be disable for load and save
+	; DISKADDRESS   = Start Address
+	; DISKADDRESS+2 = Length of Data (Save Only)
+	; FILENAME      = Length of filename
+	; FILENAME+1    = Filename (ASC)
+LEVEL_LOAD	LDA	LEVEL	; current level
+	CLC
+	ADC	#65	; first start as GA
+	STA	NAME2
+	LDA	#"G"
+	STA	NAME1
+	JSR	DLOAD
+	LDA	#"L"
+	STA	NAME1
+	JMP	DLOAD
+
+MUSIC_LOAD	LDA	LEV_TUNE,Y
+	STA	NAME2	; music bank
+	LDA	#"B"
+	STA	NAME1
+	JMP	DLOAD
+
+LEV_TUNE	DB	"111"		; 1a,b guard
+	DB	"2222"		; 2a,b,c guard
+	DB	"4444"		; 3a,b,c guard
+	DB	"3333"		; 4a,b,c guard
+	;DB	"55"		; 5a guard
+	DB	"7"		; end sequence
+	DB	"6"		; complete or loose section
+	DB	"0"		; title tunes
+
+MY_BYTE	DB	0
+
+DLOAD	LDA	#$24
+	STA	$DD00
+	JSR	INIT_TALK
+	JSR	SEND_BYTE
+	LDA	#" "
+NAME1	EQU	*-1
+	JSR	SEND_BYTE
+	LDA	#" "
+NAME2	EQU	*-1
+	JSR	SEND_BYTE
+	LDA	#0
+	JSR	SEND_BYTE
+	LDA	#0
+	JSR	SEND_BYTE
+
+	JSR	INIT_TALK
+	JSR	GET_BYTE ;skip load address from file
+	STA	LOADADD+1
+	JSR	GET_BYTE
+	STA	LOADADD+2
+	LDY	#0
+LOOPX	JSR	GET_BYTE
+	CMP	#$AC
+	BNE	XSTORE_IT
+	JSR	GET_BYTE
+	CMP	#$AC
+	BEQ	XSTORE_IT ;really was a $ac
+	CMP	#$FF
+	BEQ	ALL_DONE
+	CMP	#$F7
+	BEQ	ERROR
+	JSR	INIT_TALK 	;oops
+	BEQ	LOOPX
+XSTORE_IT	INC	$D020
+	DEC	$1
+LOADADD	STA	$8000,Y
+	INC	$1
+	DEC	$D020
+	INY	
+	BNE	LOOPX
+	INC	LOADADD+2
+	BNE	LOOPX
+ERROR	CLC	
+ALL_DONE	RTS	
+
+GET_BYTE	JSR	GET_2BITS
+	JSR	GET_2BITS
+	JSR	GET_2BITS
+	JSR	GET_2BITS
+	JSR	!RET
+	LDA	MY_BYTE
+!RET	RTS	
+GET_2BITS	LDX	#$94
+	LDA	$DD00
+	STX	$DD00
+	ASL	A
+	ROR	MY_BYTE
+	PHA	
+	PLA	
+	PHA	
+	PLA	
+L764E	LDX	#$C4
+	LDA	$DD00
+	STX	$DD00
+	ASL	A
+	ROR	MY_BYTE
+	RTS	
+SEND_BYTE	STA	MY_BYTE
+L765C	JSR	SEND_2BITS
+	JSR	SEND_2BITS
+	JSR	SEND_2BITS
+	JSR	SEND_2BITS
+	RTS	
+
+SEND_2BITS	LDA	#$14
+	LSR	MY_BYTE
+	BCC	!BIT0
+	ORA	#$20
+!BIT0	STA	$DD00
+	NOP
+	NOP
+	NOP
+	NOP
+L7678	LDA	#$4
+	LSR	MY_BYTE
+	BCC	!BIT0
+	ORA	#$20
+!BIT0	STA	$DD00
+	NOP	
+	NOP	
+	RTS
+
+INIT_TALK	LDX	#$32
+!LOOP	DEX	
+	BNE	!LOOP
+LA088	LDA	$DD00
+	AND	#$40
+	BEQ	LA088
+L7692	LDA	#$C4
+	STA	$DD00
+	LDX	#$5
+!LOOP	DEX	
+	BNE	!LOOP
+	RTS
+ENDLOADER
+	ENDIF
+
+	IF	TAPE_LOADER
+
+MPTR1	EQU	&AC	; Start address of file
+MPTR2	EQU	&AE	; End address/Workspace address
+TSPEED	EQU	&B0	; Baud rate number
+MPTR3	EQU	&BB	; Filename PRT
+MFLEN	EQU	&B7	; Length of filename
+MCONTRL	EQU	&90	; Control byte
+MCHECKSUM	EQU	&9B	; EOR checksum
+MBYTE	EQU	&95	; Current byte being formed in int
+MLVFLAG	EQU	&93	; Load/Verify flag
+MINDEX	EQU	&9C	; Index counter for interrupt driver
+INTERLOCK	EQU	&C0	; Cassette motor interlock
+
+;MPTR1	EQU	&EC	; Start address of file
+;MPTR2	EQU	&EE	; End address/Workspace address
+;TSPEED	EQU	&E0	; Baud rate number
+;MPTR3	EQU	&E2	; Filename PRT
+;MFLEN	EQU	&E4	; Length of filename
+;MCONTRL	EQU	&D0	; Control byte
+;MCHECKSUM	EQU	&DB	; EOR checksum
+;MBYTE	EQU	&D5	; Current byte being formed in int
+;MLVFLAG	EQU	&D3	; Load/Verify flag
+;MINDEX	EQU	&DC	; Index counter for interrupt driver
+;INTERLOCK	EQU	&F0	; Cassette motor interlock
+
+LEVEL_LOAD	LDA	LEVEL	; current level
+	CMP	#255
+LAST_LEV	EQU	*-1	; same level
+	BEQ	SAME_LEV
+	STA	LAST_LEV	; else new level loaded
+	CLC
+	ADC	#65	; first start as GA
+	STA	FILE_NAME+1
+	JSR	SWAP_CHARS		; chars to charset for text printing
+	JSR	SETTIRQ		; set back title page irq
+	JSR	CLG		; clear game screen
+	JSR	PLOT_TEXT		; Colour, Ycord, Xcord
+	DB	1,10,13,"PLAY ON TAPE",255
+	JSR	REST_ASK
+	LDA	#"G"
+	STA	FILE_NAME+0
+	JSR	TLOAD
+	LDA	#"L"
+	STA	FILE_NAME+0	; next LA
+	JSR	TLOAD
+	LDY	LEVEL	; this level
+	LDA	LEV_TUNE,Y
+	CMP	LEV_TUNE-1,Y	; same as last
+	BEQ	END_LOD
+	STA	FILE_NAME+1	; music bank
+	LDA	#"B"
+	STA	FILE_NAME+0
+	JSR	TLOAD
+END_LOD	LDA	#0
+	STA	BORDER		; put to blank
+	JSR	SWAP_CHARS		; chars to charset for text printing
+	JSR	SETTIRQ		; set back title page irq
+	JSR	CLG		; clear game screen
+	JSR	PLOT_TEXT		; Colour, Ycord, Xcord
+	DB	1,10,13,"STOP THE TAPE",255
+REST_ASK	JSR	FBTS
+	JSR	SCREEN_ON		; now have a look
+	JSR	DE_BOUNCE
+	JSR	SCREEN_OFF
+	JSR	SWAP_CHARS		; swap back characters back
+	JMP	SETNOIRQ
+
+LEV_TUNE	DB	"111"		; 1a,b guard
+	DB	"2222"		; 2a,b,c guard
+	DB	"4444"		; 3a,b,c guard
+	DB	"3333"		; 4a,b,c guard
+	;DB	"55"		; 5a guard
+	DB	"7"		; end sequence
+	DB	"6"		; complete or loose section
+	DB	"0"		; title tunes
+
+FILE_NAME	DB	"AA",0	; poked for music and level
+
+TLOAD	SEI
+	LDA	#2
+	STA	MFLEN	
+	LDA	#&41
+	STA	MLVFLAG
+	LDA	#>FILE_NAME
+	STA	MPTR3
+	LDA	#<FILE_NAME
+	STA	MPTR3+1
+	STX	XREG+1	;&112E
+	STY	YREG+1	;&1130
+	LDA	1
+	AND	#&DC
+	ORA	#1
+	STA	1
+	LDA	#0
+	STA	BRAN+1	;&108C
+	LDA	#&7F
+	STA	&DC0D
+	LDA	#&90
+	STA	&DC0D
+	LDA	JJUMP+1	;&1069
+	STA	&FFFE
+	LDA	JJUMP+2	;&106A
+	STA	&FFFF
+	LDA	#&FE
+	STA	&DC04
+	LDA	#1
+	STA	&DC05
+	LDA	#0
+	STA	MCONTRL
+	CLI
+	LDA	MLVFLAG
+	AND	#2
+	BNE	RET
+WAT	LDA	MCONTRL
+	CMP	#&FD
+	BCC	WAT
+GOLOAD	LDA	#&7F
+	STA	&DC0D
+	LDA	1
+	ORA	#&20
+	STA	INTERLOCK
+	STA	1
+	LDA	MCONTRL
+	CMP	#&FE
+	LDX	MPTR1
+	LDY	MPTR1+1	;&AD
+RET	RTS
+NOTME	STA	&D019
+	CLI
+	PLA
+	RTI
+JJUMP	JMP	IRC	;&106b
+IRC	PHA
+	LDA	&D019
+	BMI	NOTME	;&1060
+	LDA	&DC0D
+	LSR	A
+	LDA	#&11
+	STA	&DC0E
+	BIT	MLVFLAG
+	BVC	MISBORD	;&1086
+	LDA	&D020
+	EOR	#5
+	STA	&D020
+MISBORD	LDA	&DC0D
+	LDA	#0
+BRAN	BEQ	NEXTLI	;&108D
+NEXTLI	ROL	MBYTE
+	LDA	MBYTE
+	CMP	#&0F
+	BNE	BAKRET	;&10A3
+	LDA	#&18
+	STA	BRAN+1	;&108C
+	LDA	#0
+	STA	BRAN2+1	;&10BA
+	LDA	#1
+	STA	MBYTE
+BAKRET	PLA
+	RTI
+	ROL	MBYTE
+	BCC	BAKRET	;&10A3
+	LDA	MBYTE
+	EOR	MCHECKSUM
+	STA	MCHECKSUM
+	TXA
+	PHA
+	TYA
+	PHA
+	LDA	MBYTE
+	LDX	#1
+	STX	MBYTE
+BRAN2	BCS	NEXLIN2	;&10BB
+NEXLIN2	CMP	#&0F
+	BEQ	SETIT	;&10C8
+RESBAK	LDA	#0
+	STA	BRAN+1	;&108C
+	LDA	#&FF
+	STA	MBYTE
+SETIT	LDA	#&1E
+	STA	BRAN2+1	;&10BA
+RESTREG	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	RTI
+	JMP	STORE	;&1157
+	JMP	ENDCH	;&1181
+	CMP	#&0F
+	BEQ	RESTREG	;&10CD
+	CMP	#&AA
+	BNE	RESBAK	;&10BF
+	LDA	#&34
+	STA	BRAN2+1	;&10BA
+	LDA	#0
+	STA	MINDEX
+	STA	MCHECKSUM
+	JMP	RESTREG	;&10CD
+	LDY	MINDEX
+	CPY	MFLEN
+	BCS	YCOMP	;&10F9
+	CMP	(MPTR3),Y
+	BNE	RESBAK	;&10BF
+YCOMP	CPY	#&16
+	BCS	WLEFT	;&1109
+	CPY	#&10
+	BCC	SKSTOR	;&1104
+	STA	MINDEX,Y
+SKSTOR	INY
+	STY	MINDEX
+	BNE	RESTREG	;&10CD
+WLEFT	LDA	MCHECKSUM
+	BNE	INITC	;&1185
+	LDA	TSPEED+1	;&B1
+	LSR	A
+	PHA
+	LDA	TSPEED
+	ROR	A
+	CLC
+	ADC	TSPEED
+	STA	&DC04
+	PLA
+	ADC	TSPEED+1	;&B1
+	STA	&DC05
+	LDA	#&6D
+	STA	BRAN2+1	;&10BA
+	JMP	RESTREG	;&10CD
+	LDA	MLVFLAG
+	LSR	A
+	BCS	VERF	;&1135
+XREG	LDX	#0
+YREG	LDY	#0
+	STX	MPTR1
+	STY	MPTR1+1	;&AD
+VERF	LDY	#0
+	LDA	MPTR2+1	;&AF
+	BNE	DECADR	;&1142
+	LDY	MPTR2
+	STA	MPTR2
+	JMP	NODEC	;&1144
+DECADR	DEC	MPTR2+1	;&AF
+NODEC	STY	MINDEX
+	LDA	#&18
+	STA	BRAN2+1	;&10BA
+	INC	MCONTRL
+	BIT	MLVFLAG
+	BVC	GOBAK	;&1154
+	INC	&D020
+GOBAK	JMP	RESTREG	;&10CD
+STORE	LDX	1
+	LDY	#4
+	STY	1
+	LDY	#0
+	BIT	MLVFLAG
+	BMI	VERIFY	;&1179
+	STA	(MPTR1),Y
+NOLOER	STX	1
+	INC	MPTR1
+	BNE	HIGB	;&116D
+	INC	MPTR1+1	;&AD
+HIGB	DEC	MINDEX
+	BNE	GOBAK	;&1154
+	LDA	#&1B
+	STA	BRAN2+1	;&10BA
+	JMP	RESTREG	;&10CD
+VERIFY	CMP	(MPTR1),Y
+	BEQ	NOLOER	;&1165
+	STX	1
+	BNE	INITC	;&1185
+ENDCH	LDA	MCHECKSUM
+	BEQ	REEND	;&1191
+INITC	LDA	#&FF
+SE1	STA	MCONTRL
+	LDA	#&16
+	STA	BRAN+1	;&108C
+	JMP	RESTREG	;&10CD
+REEND	LDA	MPTR2
+	ORA	MPTR2+1	;&AF
+	BNE	VERF	;&1135
+	LDA	#&FD
+	BNE	SE1	;&1187
+ENDLOADER
+	ENDIF
+
+	IF	TAPE_LOADER ! DISK_LOADER
+	ELSE
+LEVEL_LOAD	RTS
+	ENDIF
+
+	INCLUDE	..\CODE\MUSIC.PDS	; music source
+
+	FREE	TILE_START-*		; free code memory
+
+	IF	PDS
+
+	INCLUDE	PDS.PDS
+
+	ENDIF
+
+	;FREE	TILE_START-*		; free code memory
+
+	ORG	ESPR1_MEM		; low in memory when disk loader
+
+****************************************
+*	CONTROL GAME START	*
+****************************************
+START_CODE	SEI			; start of game code
+	CLD
+	LDX	#255
+	TXS
+	LDA	#127		; lock shit OS up
+	STA	CIA1ICR
+	STA	CIA2ICR
+	LDA	CIA1ICR
+	LDA	CIA2ICR
+	LDA	#%10000000		; set frequency 50 Hz
+	STA	CIA1CRA
+	LDA	#>IGNORE		; set all hardware vectors
+	STA	NMIVECTOR		; point to an RTI
+	STA	RESETVECTOR		; all system stuff is shut down
+	STA	IRQVECTOR	
+	LDA	#<IGNORE
+	STA	NMIVECTOR+1
+	STA	RESETVECTOR+1
+	STA	IRQVECTOR+1
+	LDA	#%00100101		; want IO and no KERNAL or BASIC
+	STA	R6510
+	LDA	#0
+	STA	VICCR1		; blank screen
+	STA	BORDER
+	STA	COLOUR0		; allways 0
+	STA	ENABLE		; no sprites on screen
+	STA	EXPANDY
+	STA	EXPANDX
+	STA	SCREENTEST		; allow first test to follow through
+	STA	SCREENENABLE
+	STA	PRIORITY
+	STA	MULTI1		; multicolour 1 black
+	LDA	#LT_RED		; face skin colour
+	STA	MULTI0
+	LDA	#%11111111		; all multicolour sprites
+	STA	MULTICOL
+	LDA	#WHITE
+	STA	SPC0
+	LDA	#MED_GREY		; ripley top
+	STA	SPC1
+	LDA	#ORANGE		; ripley legs
+	STA	SPC2
+	LDA	#1		; midium difficulity level
+	STA	GAME_MODE
+	LDA	#255
+	STA	TRACKER_Y+0		; dont uplot yet (do plot first)
+	STA	TRACKER_Y+1
+	STA	TRACKER_Y+2
+	STA	TRACKER_Y+3
+	STA	TRACKER_Y+4
+	LDA	#&A0
+	STA	DR_MEM
+	STA	DR_MEM+3
+	STA	DR_MEM+6
+	LDA	#&20
+	STA	DR_MEM+9
+	LDA	#ST_LEVEL
+	STA	LEVEL		; section
+	IF	PDS
+	JSR	PDSSETUP
+	ENDIF
+	JSR	SWAP_CHARS		; init with charset at right place
+	IF	DISK_LOADER
+TRY_AGAIN	JSR	SETTIRQ
+	JSR	CLG
+	JSR	PLOT_TEXT		; Colour, Ycord, Xcord
+	DB	1,10,9,"PLEASE TURN DISK OVER",255
+	JSR	PLOT_TEXT
+	DB	1,14,9,"PRESS FIRE WHEN READY",255
+	JSR	SCREEN_ON		; now have a look
+	JSR	DE_BOUNCE
+	JSR	SCREEN_OFF
+	JSR	SETNOIRQ
+	LDY	#17		; load bank 0
+	JSR	MUSIC_LOAD
+	LDY	#17		; load bank 0
+	JSR	MUSIC_LOAD
+	BCC	TRY_AGAIN
+	JSR	SETTIRQ
+	JMP	FIRST_GO
+	ENDIF
+
+	IF	TAPE_LOADER
+	JSR	SETTIRQ
+	JSR	CLG
+	JSR	PLOT_TEXT		; Colour, Ycord, Xcord
+	DB	1,10,8,"SET TAPE COUNTER TO 000 ",255
+	JSR	PLOT_TEXT
+	DB	1,14,9,"PRESS FIRE WHEN READY",255
+	JSR	SCREEN_ON		; now have a look
+	JSR	DE_BOUNCE
+	JSR	SCREEN_OFF
+	JSR	SETTIRQ
+	JMP	FIRST_GO
+	ENDIF
+
+	IF	DISK_LOADER=0 & TAPE_LOADER=0
+	JSR	SETTIRQ
+	JMP	FIRST_GO
+	ENDIF
+
+	;LIST	ON
+
+	SEND	COMPUTER1
+
+	END	;START_CODE
+

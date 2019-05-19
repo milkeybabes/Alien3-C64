@@ -1,0 +1,1249 @@
+****************************************
+*	Enemy Entire Control	*
+****************************************
+
+	; Scan trigger on of aliens (take out from scan when been used)
+	; done from tile block positions
+
+SCAN_NEW	LDA	LEV_BYTE
+	CMP	#3
+	BEQ	NO_ALIENS		; will have gardian set already
+	LDX	#0		; first one only
+FREE_LOOP	LDA	ENEMY_TYPE,X	; get type
+	BNE	WITH_OTHER		; only when sprite is free can use
+	JSR	NOTIN_USE
+WITH_OTHER	INX
+	INX
+	CPX	#6		; all sprites, (including pris one)
+	BNE	FREE_LOOP
+NO_ALIENS	RTS
+
+END_TABL	LDA	#0		; reset index
+	STA	SCANNER_INDEX
+	CPY	#0		; if index =0 then rescue
+	BEQ	NO_ALIENS		; no aliens were required
+NOTIN_USE	LDY	SCANNER_INDEX
+	LDA	WHAT_ONE,Y		; what act type to use here
+	BEQ	END_TABL		; end of table, so reset index
+	BMI	NOT_RANGE		; been used so dont reuse
+	LDA	PLACE_X,Y		; get a param x cord
+	STA	MIKE1		; X * 16 (no need to be dead accurate!)
+	CMP	XOFFSET		; current tile x position
+	BCS	BIGGER
+	LDA	XOFFSET
+	SBC	MIKE1		; and another
+	CMP	#3
+	BCC	VALIDP
+NOT_RANGE	INC	SCANNER_INDEX
+	RTS
+
+BIGGER	SBC	XOFFSET		; MIKE1 was the largest so get distance
+	CMP	#22		; can be a little of the screen
+	BCS	NOT_RANGE
+VALIDP	LDA	PLACE_Y,Y		; y place *16
+	STA	MIKE2
+	CMP	YOFFSET		; current tile x position
+	BCS	BIGGERY
+	LDA	YOFFSET
+	SBC	MIKE2		; and another
+	CMP	#2 ;3
+	BCC	ALLON
+NOT_RANGEY	INC	SCANNER_INDEX	; enemy out of valid position scan next
+	RTS
+
+BIGGERY	SBC	YOFFSET		; MIKE1 was the largest so get distance
+	CMP	#12 ;9		; can be a little of the screen
+	BCS	NOT_RANGEY
+ALLON	LDA	#0		;x place *16 no need to be dead right
+	ASL	MIKE1		;with screen pixel position
+	ROL	A		; ie ignore TINX and XSCROLL
+	ASL	MIKE1
+	ROL	A
+	ASL	MIKE1
+	ROL	A
+	ASL	MIKE1
+	ROL	A
+	STA	ENEMY_XH,X
+	LDA	MIKE1
+	STA	ENEMY_XL,X
+	LDA	#0		; y place *16
+	ASL	MIKE2		; * 2
+	ROL	A		; if Y > 127 then put in
+	ASL	MIKE2		; * 4
+	ROL	A		; if Y > 63 then put in
+	ASL	MIKE2		; * 8
+	ROL	A		; if Y > 31 then put in
+	ASL	MIKE2		; * 16
+	ROL	A		; if y > 15 then put in
+	STA	MIKE2+1		; high byte
+	STY	ENEMY_PRESET,X	; save index to type
+	LDA	WHAT_ONE,Y		; what act type
+	STA	ENEMY_TYPE,X
+	ORA	#%10000000
+	STA	WHAT_ONE,Y
+	AND	#%01111111
+	TAY
+	LDA	HOW_MANY-3,Y	; sprites required
+	CPX	#4
+	BNE	TWOER_SIZE
+	CMP	#1		; when X=4 and size =1 then ok.
+	BEQ	CAN_DOIT		; dont use as to many sprites needed
+ZAP_THIS	LDY	ENEMY_PRESET,X	; index to 
+	LDA	WHAT_ONE,Y		; what act type
+	AND	#%01111111
+	STA	WHAT_ONE,Y		; reinit so can re use
+	LDA	#0
+	STA	ENEMY_TYPE,X
+	RTS
+TWOER_SIZE	CMP	#2		; when X<>4 and size = 2 then ok.
+	BNE	ZAP_THIS		; otherwise dont bother to call
+	LDA	ENEMY_TYPE+1,X	; make sure other is free
+	BNE	ZAP_THIS		; cant use
+CAN_DOIT	INC	SCANNER_INDEX	; now can do next one
+	LDA	DOTL-3,Y
+	STA	SET_AL+1
+	LDA	DOTH-3,Y
+	STA	SET_AL+2
+	LDY	ENEMY_PRESET,X	; get back preset position
+	LDA	CONTROL_IT,Y
+	STA	TEMP		; hold for control byte
+SET_AL	JMP	&FFFF
+
+	; other lift at 33
+	; What control can do for you
+	; roffer control byte as follows
+	; &80 on roof face left
+	; &C0 on roof face right
+	; otherwise on ground
+
+	; drips say what type it is
+	; 0 water
+	; 1 acid
+
+AS	EQU	6		; pixels move for alien
+
+AL_DUMMY	EQU	1
+AL_SPIT	EQU	2		; alien spit acid
+AL_DRIPS	EQU	3		; drips of water
+AL_PATROL	EQU	4		; track back & forth
+AL_WAITER	EQU	5		; wait then activate
+LIFT_SER	EQU	6		; lift service
+AL_GUARD	EQU	7		; boss guardian
+
+	; start from 3
+DOTL	DL	DRIP_DROP
+	DL	SET_PATROL,SET_WAITER
+	DL	SET_LIFT
+DOTH	DH	DRIP_DROP
+	DH	SET_PATROL,SET_WAITER
+	DH	SET_LIFT
+HOW_MANY	DB	1,2,2,2		; sprites need for enemy
+
+SET_LIFT	BIT	LIFT_SET		; already been activated
+	BMI	ZAP_THIS		; dont set if already one been set
+	BIT	IN_TUNNELS		; not if come from tunnel
+	BMI	ZAP_THIS
+	LDA	WHAT_ONE,Y		; what act type
+	AND	#%01111111		; put back as lift control
+	STA	WHAT_ONE,Y		; will be able to check up and down properly
+	TXA
+	TAY			; now got wanted other one
+	INY
+	JSR	SET_LIFTER
+	LDA	#128
+	STA	LIFT_SET		; now say lift has been setup on screen
+	LDA	#0
+	STA	ENEMY_ACT,X		; wait until ripley touched lift. or goes off screen
+	STA	ENEMY_DAMAGE,X	; not able to hit lift
+	STA	ENEMY_YDIR,X	; set to scan
+	LDA	#7
+	STA	SPC3,X		; and colour
+	STA	SPC3,Y
+	STY	ENEMY_ATTACH,X	; attached one
+	LDA	#AL_DUMMY
+	STA	ENEMY_TYPE,Y	; set other as dummy entry
+	LDA	#255		; now being used
+	STA	ENEMY_ATTACH,Y
+	LDA	#LIFT_SPR
+	STA	ENEMY_FRAME,X
+	STA	ENEMY_FRAME,Y
+	LDA	#4		; add on a little
+	JSR	ENEMY_MOVEX
+	LDA	#0		; sprite -24 for normal else +24
+	JSR	ADD_ENEMYX		; add to x store to y
+	JMP	SET_COPY		; set sprites up
+
+DRIP_DROP	LDA	TEMP		; from control
+	STA	ENEMY_ACT,X		; action number so know what water or acid
+	BEQ	BLWATER		; 0= water
+	LDA	#12		; green acid
+	NOW
+BLWATER	LDA	#11		; blue water
+	STA	ENEMY_FRAME,X	
+	LDA	#0
+	STA	ENEMY_YDIR,X	; for hit ripley check
+	LDA	#1
+	STA	ENEMY_SPEED,X	; move speed for drop
+	LDA	MIKE2		; minus 1 in y if on roof
+	STA	ENEMY_YL,X
+	LDA	MIKE2+1
+	STA	ENEMY_YH,X
+	RTS			; no need to copy sprite.
+
+SET_WAITER	TXA
+	TAY			; now got wanted other one
+	INY
+	BIT	TEMP
+	BPL	FLOORER		; on the floor
+	JSR	SET_ROFFER		; set alien cords and bits
+	JSR	SET_OTHER
+	LDA	#6
+	STA	ENEMY_INDEX,X
+	BIT	TEMP		; but what dir do I really want
+	BVS	RIGHER			; copy data in
+	LDA	#-AS
+	NOW
+RIGHER	LDA	#AS
+	STA	ENEMY_XDIR,X
+	INC	ENEMY_ACT,X		; = 1 , am a roffer
+	JMP	SETT_GO
+
+FLOORER	JSR	SET_FACE		; set wait to face ripley and wait
+SETT_GO	JSR	SET_RESTOF		; show frame now frame index at 0
+	STX	XTEMP		; save my index
+	JSR	COPY_IT		; copy sprite pointer for first
+	INX
+	JSR	COPY_IT		; and for second
+	LDX	XTEMP		; get back my index
+	RTS
+
+	; set for patroller from ground
+SET_PATROL	TXA
+	TAY			; now got wanted other one
+	INY
+SET_FACE	JSR	SET_ALCORD		; set alien cords and bits
+	JSR	SET_OTHER
+	; face dir towards ripley	; get side of where ripley is
+	; now A>=C so check
+	LDA	RIPLEY_XL		; ripleys x
+	SEC
+	SBC	ENEMY_XL,X
+	LDA	RIPLEY_XH
+	SBC	ENEMY_XH,X
+	BCS	!THISWAY
+	LDA	#-AS		; move leftwards
+	NOW
+!THISWAY	LDA	#AS		; move right
+	STA	ENEMY_XDIR,X
+	LDA	#-24		; sprite -24 for normal else +24
+	JMP	ADD_ENEMYX		; add to x store to y
+
+SET_ROFFER	LDA	MIKE2
+	CLC
+	ADC	#3
+	STA	ENEMY_YL,X
+	STA	ENEMY_YL,Y
+	LDA	MIKE2+1
+	ADC	#0
+	STA	ENEMY_YH,X
+	STA	ENEMY_YH,Y
+	RTS
+
+SET_LIFTER	LDA	#4
+	NOW
+SET_ALCORD	LDA	#12		; set for y position
+	STA	MIKE1
+	LDA	MIKE2
+	SEC
+	SBC	MIKE1
+	STA	ENEMY_YL,X
+	STA	ENEMY_YL,Y
+	LDA	MIKE2+1
+	SBC	#0
+	STA	ENEMY_YH,X
+	STA	ENEMY_YH,Y
+	RTS
+
+SET_OTHER	LDA	#0
+	STA	ENEMY_ACT,X		; get up from ground or whatever
+	STA	ENEMY_YDIR,X	; set y direction (well counter)
+	STA	ENEMY_INDEX,X	; set frame count
+	LDA	#3
+	STA	ENEMY_DAMAGE,X	; hits to kill
+	LDA	#AL_DUMMY
+	STA	ENEMY_SPEED,X
+	STA	ENEMY_TYPE,Y	; set other as dummy entry
+	STA	SPC3,X		; and colour
+	STA	SPC3,Y
+	STY	ENEMY_ATTACH,X	; enemy one
+	LDA	#255		; this is being used
+	STA	ENEMY_ATTACH,Y
+	RTS
+
+****************************************
+*	Update Aliens routines	*
+****************************************
+ALIEN_UPDATE
+	JSR	RIPLEY_COLLIDE	; collision params for ripley
+	LDX	#MAX_SPRITES-2	; first one only
+UP_LOOP	LDY	ENEMY_TYPE,X	; get type
+	BEQ	NOT_USED
+	BMI	NOT_USED		; dont update when prisoner
+	LDA	ENEMY_DOL-1,Y
+	STA	!GOTO+1
+	LDA	ENEMY_DOH-1,Y
+	STA	!GOTO+2
+	LDY	ENEMY_ACT,X		; now get sub action number
+!GOTO	JSR	&FFFF
+NOT_USED	DEX
+	BPL	UP_LOOP
+DUMMY	RTS
+
+ENEMY_DOL	DL	DUMMY		; 1
+	DL	DO_SPIT		; 2 acid spite
+	DL	DO_DRIPS		; 3
+	DL	DO_PATROLER		; 4
+	DL	DO_WAITER		; 5
+	DL	DO_LIFT		; 6
+	DL	DO_GUARDIAN		; 7
+
+ENEMY_DOH	DH	DUMMY		; 1
+	DH	DO_SPIT		; 2
+	DH	DO_DRIPS		; 3
+	DH	DO_PATROLER		; 4
+	DH	DO_WAITER		; 5
+	DH	DO_LIFT		; 6
+	DH	DO_GUARDIAN		; 7
+
+	; lift in position and active
+	; now when move down and touching lift allign me and 
+
+DO_LIFT	BIT	IN_TUNNELS		; kill off if enter tunnel
+	BMI	OF_SCREN
+	LDA	ENEMY_YDIR,X	; =0 for wait until want to move
+	BNE	MOVE_LIFT		; ie on lift with a up /down press
+	JSR	OFF_SCREENX		; amount off in x direction
+	BCS	OF_SCREN
+	JSR	OFF_SCREENY
+	BCC	ON_SCREN
+OF_SCREN	LDA	#0
+	STA	LIFT_SET		; lift now available
+	JMP	ZAP_ALIEN
+ON_SCREN	LDA	UP
+	ORA	DOWN
+	BEQ	COSHA		; no up/down press
+	JSR	ENEMY_HIT		; on the lift fairy middleish
+	BCC	COSHA		; no
+	LDY	ENEMY_PRESET,X	; look at preset act
+	LDA	UP		; going up !
+	BEQ	MUSTBD		; no, must be down
+	CPY	#0		; at start of table must be at the top
+	BEQ	COSHA		; top of lift
+	LDA	WHAT_ONE-1,Y	; is previous one a lift
+	CMP	#LIFT_SER		; make sure is a lift
+	BNE	COSHA		; this is the last one
+	LDA	CONTROL_IT-1,Y	; distance 0 then lifts defined same x
+	BEQ	COSHA		; table could have x's same for diff lift
+	LDA	PLACE_X,Y		; and make sure x position is the same
+	CMP	PLACE_X-1,Y		; becuase could define lifts in a bunch
+	BEQ	SET_TOUP		; no, not the same
+COSHA	RTS
+
+MUSTBD	LDA	WHAT_ONE+1,Y	; is next one a lift
+	CMP	#LIFT_SER		; make sure is a lift
+	BNE	COSHA		; this is the last one
+	LDA	CONTROL_IT,Y	; and amount to move
+	BEQ	COSHA		; is nothing dont move then
+	LDA	PLACE_X,Y		; and make sure x position is the same
+	CMP	PLACE_X+1,Y		; becuase could define lifts in a bunch
+	BNE	COSHA		; no, not the same
+	INY			; advance so amount to travel is right
+	LDA	#2		; move down
+	NOW
+SET_TOUP	LDA	#-2
+	STA	ENEMY_YDIR,X	; set add direction
+	LDA	CONTROL_IT-1,Y	; tile amount to count
+	STA	ENEMY_XDIR,X
+	LDA	#16/2		; pixels count for block position
+	STA	ENEMY_INDEX,X
+	LDA	#128+64
+	STA	LIFT_SET		; now say ripley if riding on lift
+	LDA	ACTION
+	CMP	#THROW_ACT
+	BEQ	ALSET
+	LDA	#LIFT_ACT		; now let ripley able to fire only
+	STA	ACTION
+ALSET	LDA	#STAND_SP
+	STA	FRAME
+NOT_BOTH	RTS
+
+MOVE_LIFT	LDY	ENEMY_YDIR,X	; move first then check for amount
+	TYA
+	JSR	MOVEY_RIPLEY
+	TYA
+	JSR	ENEMY_MOVEY
+	LDY	ENEMY_ATTACH,X
+	JSR	SAME_ENEMYY		; copy y cords from master to slave
+	JSR	SET_CORDS
+	INX
+	JSR	SET_CORDS		; copy both as new set
+	DEX
+	DEC	ENEMY_INDEX,X	; amount to move in 2pixel amounts
+	BNE	KEEP_MOVE
+	DEC	ENEMY_XDIR,X	; tile count
+	BEQ	END_POS
+	LDA	#16/2		; reset tile count
+	STA	ENEMY_INDEX,X
+KEEP_MOVE	RTS
+END_POS	LDA	ACTION
+	CMP	#THROW_ACT
+	BEQ	FUDG1
+	LDA	#STAND_ACT		; finished back to stand
+	STA	ACTION
+FUDG1	LDY	ENEMY_YDIR,X
+	LDA	#0
+	STA	ENEMY_YDIR,X
+	LDA	#128
+	STA	LIFT_SET		; now back to normal
+	TYA
+	BMI	BACK_IT
+	INC	ENEMY_PRESET,X
+	RTS
+BACK_IT	DEC	ENEMY_PRESET,X	; and advance in control position
+	RTS
+
+DO_DRIPS	DEC	ENEMY_SPEED,X
+	BNE	HERE
+	LDA	#1		; quite fast
+	STA	ENEMY_SPEED,X
+	JSR	ENEMY_MOVEY
+	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCS	WIPE_IT1		; off the visable screen
+	JSR	DROP_BOT		; hit bottom
+	BEQ	WIPE_IT1		; hit ground
+	LDA	ENEMY_TYPE,X
+	BEQ	HERE		; 0= water (from CONTROL_IT
+	JSR	HIT_RIPLEY		; able to wack ripers
+	BCC	HERE		; inviso
+	JSR	DRIP_HIT
+	JSR	WHAT_WACK		; duff up ripley
+	LDA	ENEMY_YDIR,X
+	CMP	#255
+	BNE	HERE
+WIPE_IT1	LDA	#0		; clear off screen
+	STA	PRISONER_FRAME	; blank sprite
+	JMP	ZAP_THIS
+
+	; Acid spit move about
+DO_SPIT	DEC	ENEMY_SPEED,X
+	BNE	HERE
+	LDA	#2		; quite fast
+	STA	ENEMY_SPEED,X
+	LDA	ENEMY_XDIR,X	; update position
+	JSR	ENEMY_MOVEX
+	JSR	SIDE_ENEMY		; collide with something
+	BEQ	WIPE_IT
+	CMP	#DOOR_OBJ
+	BEQ	WIPE_IT
+	CMP	#SLOPEL_OBJ
+	BEQ	WIPE_IT
+	CMP	#SLOPER_OBJ
+	BEQ	WIPE_IT
+	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCS	WIPE_IT		; off the visable screen
+	JSR	HIT_RIPLEY		; able to wack ripers
+	BCC	HERE		; inviso
+	JSR	SPIT_HIT
+	JSR	WHAT_WACK		; duff up ripley
+	LDA	ENEMY_YDIR,X
+	CMP	#255
+	BNE	HERE
+WIPE_IT	LDA	#0		; clear off screen
+	STA	ENEMY_TYPE,X
+	LDA	#BL		; set back to whatever
+	STA	PRISONER_FRAME	; set frame to acid spit!
+HERE	RTS
+
+****************************************
+*	Big Alien Moves		*
+****************************************
+	; wait until near ripley and spring into action
+
+DO_WAITER	LDA	ENEMY_DAMAGE,X	; been kill off
+	BEQ	EXPLODE_ALI
+	CPY	#2		; falling down
+	BEQ	FAL_IT
+	CPY	#1		; if waiter on floor
+	BNE	NOYDI		; no check y for start trigger
+	JSR	OFF_SCREENX		; off in x direction
+	BCS	OFT_SCREN
+	JSR	OFF_SCREENY		; off in y direction
+	BCC	ONT_SCREN
+OFT_SCREN	JSR	ZAP_THIS		; reset preset so can come back
+	STA	ENEMY_TYPE+1,X	; and release attached
+	RTS
+ONT_SCREN	JSR	DISTANCEY		; only when ripley below alien
+	BMI	NOTNEAR
+NOYDI	JSR	DISTANCEX		; get face dir
+	LDA	MIKE1+1		; > 256 distance
+	BNE	NOTNEAR
+	LDA	MIKE1
+	CMP	#80		; near to ripley
+	BCS	NOTNEAR
+	CPY	#1		; on cleiling
+	BEQ	FALL_ADOWN
+SET_STALK	LDA	#AL_PATROL		; to patroller
+	STA	ENEMY_TYPE,X
+	LDA	#1
+	STA	ENEMY_ACT,X		; to walk now
+NOTNEAR	RTS
+
+FALL_ADOWN	LDY	ENEMY_ATTACH,X
+	JSR	SAME_ENEMYY		; copy y cords from master to slave
+	JSR	SET_CORDS
+	INX
+	JSR	SET_CORDS		; copy both as new set
+	DEX
+	INC	ENEMY_ACT,X		; now to fall action
+	JMP	SETT_GO		; display new sprite
+
+FAL_IT	LDA	#4		; move down 4 pixels
+	JSR	ENEMY_MOVEY
+	LDY	ENEMY_ATTACH,X
+	JSR	SAME_ENEMYY		; copy y cords from master to slave
+	JSR	SET_CORDS
+	INX
+	JSR	SET_CORDS		; copy both as new set
+	DEX
+FRIGIT	JSR	BASH_RIPPS		; wack into ripley
+	JSR	ENEMY_FEET		; below feet
+	BNE	NOTNEAR		; keep falling
+	LDA	#0		; to first frame
+	STA	ENEMY_INDEX,X
+	JSR	SETT_GO		; set frame and copy data
+	JMP	SET_STALK		; back to patroller
+
+EXPLODE_ALI
+	DEC	ENEMY_TYPE,X		; make to patroller to explode it
+	JMP	GIVE_MEP
+
+DO_PATROLER
+	LDA	ENEMY_DAMAGE,X	; hits left to kill
+	BNE	ALIVE2
+	CPY	#3		; already
+	BEQ	ALIVE2		; in explosion frames then ignore
+	LDA	#8		; floor frames
+	NOW
+GIVE_MEP	LDA	#10		; celing frames
+	STA	ENEMY_INDEX,X
+	LDA	#9
+	JSR	SETFX
+	LDA	#5
+	STA	ENEMY_SPEED,X	; 1 for speed
+	LDA	#&10		; 100 added
+	JSR	SCOREADD		; give me some points 100 y=1 a=0 tehe
+	LDY	#3		; sub action blow to shit
+	STY	ENEMY_YDIR,X	; used for count down explosion frames
+	STY	ENEMY_ACT,X		; do this right away fall through
+ALIVE2	DEC	ENEMY_SPEED,X	; all have a speed factor
+	BNE	RAINA
+	; check if on screen when about to update the alien only
+	JSR	OFF_SCREENX		; off in x direction
+	BCS	ZAP_ALIEN
+	JSR	OFF_SCREENY		; off in y direction
+	BCS	ZAP_ALIEN
+	LDA	ALI_SPEED,Y		; get speed back
+	STA	ENEMY_SPEED,X
+	LDA	ATABLELOW,Y
+	STA	!GOTO+1
+	LDA	ATABLEHIGH,Y
+	STA	!GOTO+2
+!GOTO	JSR	&FFFF		; do it
+SET_COPY	STX	XTEMP
+	JSR	COPY_IT
+	INX
+	JSR	COPY_IT
+	DEX
+	LDX	XTEMP
+RAINA	RTS
+
+	; alien off the screen by a fair margin (then kill off)
+ZAP_ALIEN	LDA	#0		; kill off now
+	STA	ENEMY_TYPE,X
+	LDY	ENEMY_ATTACH,X
+	STA	ENEMY_TYPE,Y	; kill off other part
+	RTS
+
+ATABLELOW	DL	ALIEN_COME,ALIEN_RUN,ALIEN_JUMP,ALIEN_DIE
+ATABLEHIGH	DH	ALIEN_COME,ALIEN_RUN,ALIEN_JUMP,ALIEN_DIE
+
+	; was 10,5,3,1
+ALI_SPEED	DB	6,2,3,10
+
+ALIEN_COME	LDA	ENEMY_INDEX,X
+	CMP	#4		; end of come up (0 TO 3)
+	BNE	!MORES
+	LDA	#1
+	STA	ENEMY_ACT,X		; new action as move about
+	LDA	#10
+	STA	ENEMY_SPEED,X	; get up next frame
+	LDA	#0
+	STA	ENEMY_INDEX,X
+	JMP	SET_RESTOF		; up right now
+
+!MORES	LDA	ENEMY_XDIR,X	; faceing what direction
+	BPL	!ADDIT
+	LDA	#AFLOOR_SPR		; left faceing
+	NOW
+!ADDIT	LDA	#AFLOOR_SPR+4	; right faceing
+	CLC
+	ADC	ENEMY_INDEX,X
+	STA	ENEMY_FRAME,X
+	INC	ENEMY_INDEX,X
+	LDY	ENEMY_ATTACH,X
+	LDA	#BL_EN		; blank out
+	STA	ENEMY_FRAME,Y
+	RTS
+
+	; jump to wack ripley
+ALIEN_JUMP	LDY	ENEMY_INDEX,X
+	CPY	#10
+	BEQ	RETURN_BACK
+	JSR	SIDE_ENEMY
+	BEQ	NOT_MOVX
+	CMP	#DOOR_OBJ		; up against door
+	BEQ	NOT_MOVX
+	CMP	#SLOPEL_OBJ		; hit slope reverse dir
+	BEQ	!DOREV
+	CMP	#SLOPER_OBJ
+	BNE	ASNORM
+!DOREV	JSR	REVERSEX
+ASNORM	LDA	ENEMY_XDIR,X
+NEWMOV	JSR	ENEMY_MOVEX
+NOT_MOVX	LDY	ENEMY_INDEX,X
+	LDA	BUMP_YTAB,Y
+	JSR	ENEMY_MOVEY
+	LDY	ENEMY_ATTACH,X	; get index for other sprite attached
+	LDA	#-24		; sprite -24 for normal else +24
+	JSR	ADD_ENEMYX		; add to x store to y
+	JSR	SAME_ENEMYY		; same y in this case
+	INC	ENEMY_INDEX,X
+	LDA	ENEMY_YDIR,X	; hit already
+	BNE	MISHER		; have so
+BASH_RIPPS	JSR	HIT_RIPLEY		; able to wack ripers
+	BCC	MISHER		; inviso
+	JSR	ENEMY_HIT		; wacked ripley
+WHAT_WACK	BCC	MISHER
+	LDA	#255		; say have hit ripley
+	STA	ENEMY_YDIR,X	; indicator for hit player yet
+	LDA	#8
+	JSR	LOOSE		; take off some energy
+	LDA	#36		; hit ripley sound
+	JSR	SETFX
+	JSR	DISTANCEX		; hit position for ripley
+	STA	DIR
+	AND	#1
+	CLC
+	ADC	#FALL1_ACT		; FALL2 or FALL1
+	LDY	ACTION		; currently doing what
+	STA	ACTION
+	LDA	#1
+	STA	SPEED
+	CPY	#THROW_ACT		; throwing a grenade
+	BEQ	KILWEP
+	LDA	WEAPON_FIRED	; if useing flame thrower kill off
+	CMP	#2
+	BNE	IPSO
+KILWEP	JSR	END_WEAP
+IPSO	BIT	IN_TUNNELS		; when in tunnels
+	BPL	!NOTSO
+	LDA	#5		; change index to middleish
+	NOW
+!NOTSO	LDA	#0
+	STA	INDEX
+MISHER	RTS
+
+RETURN_BACK
+	LDA	#0		; now set frame count back
+	STA	ENEMY_INDEX,X
+	STA	ENEMY_YDIR,X
+	LDA	#30		; now have a delay
+	STA	ENEMY_SPEED,X
+	LDA	#1		; back to run
+	STA	ENEMY_ACT,X		; set sub action number
+	RTS
+
+BUMP_YTAB	DB	-5,-4,-3,-2,-1,0,1,3,5,6
+
+HIT_RIPLEY	LDA	BLANKING		; prisoner not hit ripley
+	BNE	INVISO		; when in cretain moded
+	LDA	ACTION
+	CMP	#FALL1_ACT
+	BEQ	INVISO
+	CMP	#FALL2_ACT
+	BEQ	INVISO
+	CMP	#TODUCT_ACT
+	BEQ	INVISO
+	CMP	#OUTOF_ACT
+	BEQ	INVISO
+	SEC
+	RTS
+INVISO	CLC
+	RTS
+
+LOOSE	STA	TEMP
+	LDA	ENERGY
+	SEC
+	SBC	TEMP
+	BCS	NOOVER
+	LDA	#0		; over flow set to zero amount
+NOOVER	STA	ENERGY
+	RTS
+
+	; Move alien around map
+ALIEN_RUN	LDA	ENEMY_INDEX,X	; next frame
+	CMP	#6
+	BNE	MOVE_LEFTR
+	LDA	#0		; reset back	
+	STA	ENEMY_INDEX,X
+MOVE_LEFTR	; make sure direction is faceing ripley (when able to)
+	;BIT	IN_TUNNELS		; no jump of spit in tunnels
+	;BMI	BIG_DIST
+	JSR	DISTANCEY		; only when above level
+	BEQ	BIG_DIST		; ignore if above ripley
+	JSR	DISTANCEX		; get face dir
+	LDA	BLANKING
+	BNE	BIG_DIST		; no pounce when hit
+	LDA	MIKE1+1		; > 256 distance
+	BNE	BIG_DIST
+	LDA	MIKE1
+	CMP	#54		; near to ripley
+	BCS	BIG_DIST
+	LDA	SEED		; get the rands
+	BPL	SPIT
+JUMP_TH	; pounce at ripley
+	BIT	IN_TUNNELS
+	BMI	BIG_DIST
+	LDA	#2		; jump at ripley
+	STA	ENEMY_ACT,X
+	LDA	#0
+	STA	ENEMY_INDEX,X
+	RTS
+SPIT	LDA	ENEMY_TYPE+4	; see if this is free
+	BNE	JUMP_TH		; not free so sodit
+
+SET_AL_SPIT
+	LDA	#AL_SPIT		; set acid spit
+	STA	ENEMY_TYPE+4	; for extra sprite
+	LDY	#4		; index for alien as 4
+	LDA	ENEMY_XDIR,X
+	STA	ENEMY_XDIR+4	; same direction
+	LDA	#0
+	STA	ENEMY_YDIR+4	; zap to say hit ripley
+	JSR	SAME_ENEMYX
+	JSR	SAME_ENEMYY
+	LDA	#40		; slow acid spitter down
+	STA	ENEMY_SPEED,X
+	LDA	#13		; acid spit
+	STA	ENEMY_FRAME+4	; for sprite checking
+	LDA	#1
+	STA	ENEMY_SPEED+4
+	LDA	#21		; spit
+	JMP	SETFX
+
+ALIEN_DIE	DEC	ENEMY_YDIR,X	; use a frame count
+	BNE	DO_FRAME		; all done now free it
+	JMP	ZAP_ALIEN		; set frames and advance on frame
+
+BIG_DIST	JSR	BASH_RIPPS		; wack into ripley
+	JSR	ENEMY_FEET		; stop floating on mid air
+	CMP	#0
+	BEQ	DORE
+	JSR	SIDE_ENEMY		; side of wall
+	BEQ	DORE
+	CMP	#SLOPEL_OBJ
+	BEQ	DORE
+	CMP	#SLOPER_OBJ
+	BEQ	DORE
+	CMP	#DOOR_OBJ
+	BNE	VALID
+DORE	JSR	REVERSEX		; walk other way
+VALID	;LDA	ENEMY_XDIR,X	; use as add value
+	;JSR	ENEMY_MOVEX
+	LDY	ENEMY_INDEX,X	; get count number
+	LDA	ADDV,Y		; add table
+	JSR	MOVE_ENEMYX
+SET_RESTOF	LDY	ENEMY_ATTACH,X	; get index for other sprite attached
+	LDA	#-24		; sprite -24 for normal else +24
+	JSR	ADD_ENEMYX		; add to x store to y
+DO_FRAME	LDY	ENEMY_INDEX,X	; get 0 or 1 for frame start
+	INC	ENEMY_INDEX,X
+	LDA	ENEMY_XDIR,X
+	BMI	SIDE_MOVE
+	LDA	WALK_RI,Y
+	STA	ENEMY_FRAME,X
+	LDA	WALK_O_RI,Y
+	LDY	ENEMY_ATTACH,X
+	STA	ENEMY_FRAME,Y
+	RTS
+
+ADDV	;DB	4,4,4,4,4,4
+	DB	8,8,6,8,6,8,8
+
+SIDE_MOVE	LDA	WALK_LE,Y
+	STA	ENEMY_FRAME,X
+	LDA	WALK_O_LE,Y
+	LDY	ENEMY_ATTACH,X
+	STA	ENEMY_FRAME,Y
+	RTS
+
+REVERSEX	LDA	ENEMY_XDIR,X
+	EOR	#AS~-AS
+	STA	ENEMY_XDIR,X
+STAND_ST	RTS
+
+WALK_LE	DB	ARUN_SPR+0,ARUN_SPR+1,ARUN_SPR+2,ARUN_SPR+3,ARUN_SPR+4,ARUN_SPR+5
+	DB	AROOF_SPR,AFALL_SPR
+	DB	DIE_SPR,DIE_SPR+1,DIE_SPR+8,DIE_SPR+9
+
+WALK_RI	DB	ARUN_SPR+12,ARUN_SPR+13,ARUN_SPR+14,ARUN_SPR+15,ARUN_SPR+16,ARUN_SPR+17
+	DB	AROOF_SPR+2,AFALL_SPR+2
+	DB	DIE_SPR+4,DIE_SPR+5,DIE_SPR+12,DIE_SPR+13
+
+WALK_O_LE	DB	ARUN_SPR+6,ARUN_SPR+7,ARUN_SPR+8,ARUN_SPR+9,ARUN_SPR+10,ARUN_SPR+11
+	DB	AROOF_SPR+1,AFALL_SPR+1
+	DB	DIE_SPR+2,DIE_SPR+3,DIE_SPR+10,DIE_SPR+11
+
+WALK_O_RI	DB	ARUN_SPR+18,ARUN_SPR+19,ARUN_SPR+20,ARUN_SPR+21,ARUN_SPR+22,ARUN_SPR+23
+	DB	AROOF_SPR+3,AFALL_SPR+3
+	DB	DIE_SPR+6,DIE_SPR+7,DIE_SPR+14,DIE_SPR+15
+
+****************************************
+*	General Utils		*
+****************************************
+DISTANCEX	LDA	ENEMY_XL,X		; get distance for this sprite
+	SEC
+	SBC	RIPLEY_XL
+	STA	MIKE1
+	LDA	ENEMY_XH,X
+	SBC	RIPLEY_XH
+	BCC	TAKE2		; sprite is the bigger
+	STA	MIKE1+1
+	LDA	#128		; alien to right of me
+	RTS
+
+	; Ripley Xposition the bigger, ie alien to left of me
+TAKE2	LDA	RIPLEY_XL
+	SEC
+	SBC	ENEMY_XL,X
+	STA	MIKE1
+	LDA	RIPLEY_XH
+	SBC	ENEMY_XH,X
+	STA	MIKE1+1
+	LDA	#0		; left side of ripley
+	RTS
+
+DISTANCEY	LDA	ENEMY_YL,X		; get distance for this sprite
+	SEC
+	SBC	RIPLEY_YL
+	STA	MIKE1
+	LDA	ENEMY_YH,X
+	SBC	RIPLEY_YH
+	BCC	TAKE3		; sprite is the bigger
+	STA	MIKE1+1
+	LDA	#128		; enemy below ripley
+	RTS
+
+	; Ripley position below enemy
+TAKE3	LDA	RIPLEY_YL
+	SEC
+	SBC	ENEMY_YL,X
+	STA	MIKE1
+	LDA	RIPLEY_YH
+	SBC	ENEMY_YH,X
+	STA	MIKE1+1
+	LDA	#0		; above ripley
+	RTS
+
+	; check left or right side of player into tile map pos for stop
+SIDE_BULLET
+	LDA	BULLET_YL		; and divide down for tile place
+	STA	MIKE2		; temp save
+	LDA	BULLET_YH
+	STA	MIKE2+1
+	LDA	BULLET_XL		; and divide down for tile place
+	CLC
+	BIT	BULLET_DIR
+	BMI	!STAND		; direction faceing
+	ADC	#9
+	NOW
+!STAND	ADC	#0
+	STA	MIKE1
+	LDA	BULLET_XH
+	ADC	#0
+	STA	MIKE1+1
+	JMP	HIT_OBJECT
+
+BULLET_BOT	LDA	#4		; bottom of bullets bit
+	NOW
+BULLET_TOP	LDA	#0		; top of bullet
+	CLC			; add little offset
+	ADC	BULLET_YL		; and divide down for tile place
+	STA	MIKE2		; temp save
+	LDA	BULLET_YH
+	ADC	#0
+	STA	MIKE2+1
+	LDA	#4		; in middle of bullet
+	CLC
+	ADC	BULLET_XL		; and divide down for tile place
+	STA	MIKE1
+	LDA	BULLET_XH
+	ADC	#0
+	STA	MIKE1+1
+	JMP	HIT_OBJECT
+
+	; get below alien feet either top of sprite of below sprite
+	; depending if on the roof or not
+
+SIDE_ENEMY	; check left or right side of player into tile map pos for stop
+	LDA	ENEMY_XDIR,X
+	BMI	LEFT_SIDE
+	LDA	ENEMY_XL,X
+	CLC
+	ADC	#24		; right side of sprite
+	STA	MIKE1
+	LDA	ENEMY_XH,X
+	ADC	#0
+	JMP	STANDARD
+LEFT_SIDE	LDA	ENEMY_XL,X
+	STA	MIKE1
+	LDA	ENEMY_XH,X		; and divide down for tile place
+STANDARD	STA	MIKE1+1
+	LDA	ENEMY_YL,X
+	CLC
+	ADC	#16
+	STA	MIKE2
+	LDA	ENEMY_YH,X
+	ADC	#0
+	STA	MIKE2+1
+	JMP	HIT_OBJECT
+ENEMY_HEAD	LDA	ENEMY_YDIR,X	; what way moveing
+	BPL	ENEMY_FEET		; 1 then moveing down chek 
+ENEMY_TOP	LDA	#0
+	NOW
+DROP_BOT	LDA	#2		; bottom of droplet
+	NOW
+ENEMY_FEET	LDA	#21+1+8		; one sprite deep
+	CLC			; add little offset
+	ADC	ENEMY_YL,X		; and divide down for tile place
+	STA	MIKE2		; temp save
+	LDA	ENEMY_YH,X
+	ADC	#0
+	STA	MIKE2+1
+	LDA	#24/2		; in middle of sprite
+	CLC
+	ADC	ENEMY_XL,X		; and divide down for tile place
+	STA	MIKE1
+	LDA	ENEMY_XH,X
+	ADC	#0
+	STA	MIKE1+1
+
+	; Hit something from MIKE2 (Y low/High), MIKE1 (X low/High)
+HIT_OBJECT	LDA	MIKE2
+	LSR	MIKE2+1
+	ROR	A
+	LSR	MIKE2+1
+	ROR	A
+	LSR	MIKE2+1
+	ROR	A
+	LSR	MIKE2+1
+	ROR	A
+	TAY
+	STA	MIKE2		; save for blow doors
+	LDA	MIKE1		; get low in A
+	LSR	MIKE1+1		; / 2
+	ROR	A
+	LSR	MIKE1+1		; / 4
+	ROR	A
+	LSR	MIKE1+1		; / 8
+	ROR	A
+	LSR	MIKE1+1		; / 16
+	ROR	A
+	STA	MIKE1		; save for blow doors
+	CLC
+	ADC	GMAP_L,Y		; map memory low
+	STA	ADDRESS+1
+	LDA	GMAP_H,Y		; map memory hi
+	ADC	#0
+	STA	ADDRESS+2
+ADDRESS	LDA	&FFFF		; get tile number
+	AND	#&7F
+	TAY
+	LDA	TILE_MAP,Y		; see what to do for tile
+	CMP	#HIT_OBJ		; hit a wall
+	RTS
+
+	; See if bullet map position will fit on screen window
+	; Bullet size is 8 pixels (hires one 4 lowres)
+	; by 7 pixels y
+	; X sprite Y what one
+SPRITE_ONSCREEN
+	INX
+	LDA	SPRITE_XL,X		; bullet position
+	SEC
+	SBC	PIXEL_XL
+	STA	MIKE1		; low byte
+	LDA	SPRITE_XH,X
+	SBC	PIXEL_XH
+	STA	MIKE1+1
+	BEQ	CHECK_YPOS		; must be on if 0
+	CMP	SIZEXH,X		; hit byte of -8
+	BNE	OTH1		; check right side
+	LDA	MIKE1
+	CMP	SIZEXL,X		; low byte of -8
+	BCS	CHECK_YPOS
+MUST_BE_OFF	SEC		; off left side (below -8)
+SAVE_BYTE	DEX
+	RTS
+
+	; off screen values for sprites 0 bullet, rest enemy
+SIZEXL	DL	-7,-24,-24,-24,-24,-32
+SIZEXH	DH	-7,-24,-24,-24,-24,-32
+SIZEYL	DL	-6,-21,-21,-21,-21,-29
+SIZEYH	DH	-6,-21,-21,-21,-21,-29
+
+OTH1	CMP	#<SCREEN_XLENGTH+2	; high off right side
+	BNE	MUST_BE_OFF
+	LDA	MIKE1		; low byte
+	CMP	#>SCREEN_XLENGTH+2
+	BCS	SAVE_BYTE		; off screen C=1 already
+	; otherwise now check y position
+
+CHECK_YPOS	LDA	SPRITE_YL,X		; bullet position
+	SEC
+	SBC	PIXEL_YL
+	STA	MIKE1		; low byte
+	LDA	SPRITE_YH,X
+	SBC	PIXEL_YH
+	BEQ	CHECK_RANGE		; below top of screen
+	CMP	SIZEYH,X		; hit byte of -6
+	BNE	MUST_BE_OFF		; check right side
+	LDA	MIKE1
+	CMP	SIZEYL,X		; low byte of -6
+	BCS	!ONSCREEN
+	SEC			; off left side (below -8)
+	DEX
+	RTS
+!ONSCREEN	CLC
+	DEX
+	RTS
+
+CHECK_RANGE
+	LDA	MIKE1
+	CMP	#>SCREEN_YLENGTH+1	; off bottom side
+	DEX
+	RTS
+
+LEFT_LOOSE		EQU	(3*16)+24
+RIGHT_LOOSE	EQU	LEFT_LOOSE+SCREEN_XLENGTH
+
+OFF_SCREENX
+	LDA	ENEMY_XL,X		; get distance for this sprite
+	SEC
+	SBC	PIXEL_XL
+	STA	MIKE1
+	LDA	ENEMY_XH,X
+	SBC	PIXEL_XH
+	BCC	TAKE4		; screen if the bigger
+	CMP	#(<RIGHT_LOOSE)+1
+	BCS	COUT
+	CMP	#<RIGHT_LOOSE	; less then 255
+	BCC	COUT
+	LDA	MIKE1
+	CMP	#>RIGHT_LOOSE
+COUT	RTS			; C=1 off screen C=0 if on
+
+	; enemy off left side of screen
+TAKE4	LDA	PIXEL_XL
+	SEC
+	SBC	ENEMY_XL,X
+	STA	MIKE1
+	LDA	PIXEL_XH
+	SBC	ENEMY_XH,X
+	CMP	#(<LEFT_LOOSE)+1		; more than 256
+	BCS	COUT
+	LDA	MIKE1
+	CMP	#>LEFT_LOOSE
+	RTS			; C=1 off screen C=0 if on
+
+TOP_LOOSE		EQU	(4*16)
+BOTTOM_LOOSE	EQU	TOP_LOOSE+SCREEN_YLENGTH
+
+OFF_SCREENY
+	LDA	ENEMY_YL,X		; get distance for this sprite
+	SEC
+	SBC	PIXEL_YL
+	STA	MIKE1
+	LDA	ENEMY_YH,X
+	SBC	PIXEL_YH
+	BCC	TAKE5		; screen is the bigger
+	CMP	#(<BOTTOM_LOOSE)+1
+	BCS	WOUT
+	LDA	MIKE1
+	CMP	#>BOTTOM_LOOSE
+WOUT	RTS			; C=1 off screen C=0 if on
+
+	; enemy off top of screen
+TAKE5	LDA	PIXEL_YL
+	SEC
+	SBC	ENEMY_YL,X
+	STA	MIKE1
+	LDA	PIXEL_YH
+	SBC	ENEMY_YH,X
+	CMP	#(<TOP_LOOSE)+1		; more than 256
+	BCS	WOUT
+	LDA	MIKE1
+	CMP	#>TOP_LOOSE
+	RTS			; C=1 off screen C=0 if on
+
+****************************************
+*	Sprite Movement		*
+****************************************
+
+ADD_BULLETX
+	BIT	BULLET_DIR		; going what way
+	BPL	ADD_IT
+	EOR	#255		; get minus x
+	CLC
+	ADC	#1
+MOVE_BULLETX
+	BMI	CHIMP
+ADD_IT	CLC
+	ADC	BULLET_XL		; ripley map + 2
+	STA	BULLET_XL
+	LDA	BULLET_XH
+	ADC	#0
+	STA	BULLET_XH
+	RTS
+
+CHIMP	CLC
+	ADC	BULLET_XL
+	STA	BULLET_XL
+	LDA	BULLET_XH
+	SBC	#0
+	STA	BULLET_XH
+	RTS
+
+MOVE_BULLETY
+	BMI	!NOISE
+	CLC
+	ADC	BULLET_YL
+	STA	BULLET_YL
+	LDA	BULLET_YH
+	ADC	#0
+	STA	BULLET_YH
+	RTS
+
+!NOISE	CLC
+	ADC	BULLET_YL
+	STA	BULLET_YL
+	LDA	BULLET_YH
+	SBC	#0
+	STA	BULLET_YH
+	RTS
+
+****************************************
+*	MOVE Enemy BY A		*
+****************************************
+MOVE_ENEMYX
+	STA	TEMP
+	LDA	ENEMY_XDIR,X
+	BPL	!NORMAL_AD
+	; else subtrace value
+	LDA	TEMP
+	EOR	#255
+	CLC
+	ADC	#1		; turn to negitive number
+	; Call with eith +ive or -ive number for move factor
+	STA	TEMP
+!NORMAL_AD	LDA	TEMP
+ENEMY_MOVEX	CMP	#0		; get flags for passed add value
+
+	BMI	!NEGITIVE		; find direction as sing
+	CLC
+	ADC	ENEMY_XL,X		; move cord
+	STA	ENEMY_XL,X
+	LDA	ENEMY_XH,X		; high bit
+	ADC	#0
+	STA	ENEMY_XH,X
+	RTS
+
+!NEGITIVE	CLC
+	ADC	ENEMY_XL,X
+	STA	ENEMY_XL,X
+	LDA	ENEMY_XH,X
+	SBC	#0
+	STA	ENEMY_XH,X
+	RTS
+
+ENEMY_MOVEY
+	BMI	!NEGITIVE	; find direction as sign val in A
+	CLC
+	ADC	ENEMY_YL,X		; X sprite offset
+	STA	ENEMY_YL,X		; up or down
+	LDA	ENEMY_YH,X
+	ADC	#0
+	STA	ENEMY_YH,X
+	RTS
+
+!NEGITIVE	CLC
+	ADC	ENEMY_YL,X
+	STA	ENEMY_YL,X
+	LDA	ENEMY_YH,X
+	SBC	#0
+	STA	ENEMY_YH,X
+	RTS
+
+	; Add to ENEMY in X and store to ENEMY in Y
+ADD_ENEMYX	STA	TEMP
+	LDA	ENEMY_XDIR,X
+	BPL	!NORMAL_AD
+	; else subtrace value
+	LDA	TEMP
+	EOR	#255
+	CLC
+	ADC	#1		; turn to negitive number
+	; Call with eith +ive or -ive number for move factor
+	STA	TEMP
+!NORMAL_AD	LDA	TEMP
+	CMP	#0		; get flags for passed add value
+ENEMY_ADDX	BMI	!NEGITIVE		; find direction as sing
+	CLC
+	ADC	ENEMY_XL,X		; move cord
+  	STA	ENEMY_XL,Y
+	LDA	ENEMY_XH,X		; high bit
+	ADC	#0
+	STA	ENEMY_XH,Y
+	RTS
+
+!NEGITIVE	CLC
+	ADC	ENEMY_XL,X
+	STA	ENEMY_XL,Y
+	LDA	ENEMY_XH,X
+	SBC	#0
+	STA	ENEMY_XH,Y
+	RTS
+
+SAME_ENEMYX
+	LDA	ENEMY_XL,X
+	STA	ENEMY_XL,Y
+	LDA	ENEMY_XH,X
+	STA	ENEMY_XH,Y	
+	RTS
+SAME_ENEMYY
+	LDA	ENEMY_YL,X
+	STA	ENEMY_YL,Y
+	LDA	ENEMY_YH,X
+	STA	ENEMY_YH,Y	
+	RTS
+

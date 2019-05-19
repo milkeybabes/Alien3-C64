@@ -1,0 +1,1545 @@
+
+YOFF	DB	21		; blank
+	DB	21,21,21,21,21,21	; normal with stand
+	DB	11,11,11,11,11,11	; offset in middle for duck down
+	DB	21,21,19,19,20,20	; running along
+	DB	21,21,19,19,20,20
+	DB	21,21,19,19,20,20	; running upward
+	DB	21,21,19,19,20,20
+	DB	21,21,19,19,20,20	; running downward
+	DB	21,21,19,19,20,20
+	DB	21		; jump
+	DB	21		; stride to ladder
+	DB	21		; holding on ladder
+	DB	21,21,21
+	DB	21,21,21,21,21,21	; climb ladder
+	DB	00,00,00,00,00,00	; same line on crawl
+	DB	00		; crawl lob
+	DB	21,21,21		; lob grenade from stand
+	DB	21,21		; crawl to tunnel
+	DB	09,13		; tunnel to ladder
+	DB	21,00,00,00		; fall forwards
+	DB	21,00,00,00		; fall backwards
+	DB	09,19,-16,-8	; down slope
+	DB	00,00
+	DB	21		; turn around
+	DB	0		; crawl fire
+	DB	0
+
+****************************************
+*	some more data		*
+****************************************
+
+	; this data for fireing these sprites were a big waste of memory
+	; When bullet is fired
+
+	; Bullets data arranged in byte places
+	; 0 blank default
+	; 1 bullet hit side left
+	; 2 bullet hit side right
+	; 3 bullet hit top
+	; 4 bullet hit bottom
+	; 5 - 9 grenade frames
+	; 10 - 15 pulse rifle flame flare up (STANDING UP)
+	; 10 right along
+	; 11 right up
+	; 12 right down
+	; 13 left along
+	; 14 left up
+	; 15 left down
+	; 16 - 21 pulse rifle flame flare up (DUCK DOWN)
+	; 16 right along
+	; 17 right up
+	; 18 right down
+	; 19 left along
+	; 20 left up
+	; 21 left down
+	; 22 right throw hand
+	; 23 left throw hand
+
+	; 24 fire flare duct right
+	; 25 fire flare duct left
+
+	; More pulse rifle flames flare up
+	; 26 pulse along flame down 2 right
+	; 27 pulse along flame down 1 right
+	; 28 pulse along flame down 2 left
+	; 29 pulse along flame down 1 left
+	; 30 pulse up flame down 2 right
+	; 31 pulse up flame down 1 right
+	; 32 pulse up flame down 2 left
+	; 33 pulse up flame down 1 left
+	; 34 pulse down flame down 2 right
+	; 35 pulse down flame down 1 right
+	; 36 pulse down flame down 2 left
+	; 37 pulse down flame down 1 left
+	; 38 fire up on ladder
+	; 39 fire down in ladder
+	; May move these numbers
+	; 40 - 43 Flame throwers flames right
+	; 44 - 47 Flame throwers flames left
+	; 48 - 51 Flame throwers flames on ladder upwards
+	; 52 - 55 Flame throwers flames on ladder downwards
+	; 56 - 59 Explosion for grenade types (both)
+
+BULLET_POINTER		; right faceing
+	DB	ET,ET,ET,ET,ET,ET,ET,ET,ET,ET
+	DB	R3+0,R3+01,R3+2,L3+0,L3+1,L3+2
+	DB	R3+0,R3+01,R3+2,L3+0,L3+1,L3+2
+	DB	R8+6,L8+6
+	DB	R3+3,L3+3
+
+	DB	R3+0,R3+0,L3+0,L3+0
+	DB	R3+1,R3+1,L3+1,L3+1
+	DB	R3+2,R3+2,L3+2,L3+2
+	DB	CS+15,CS+20
+
+	DB	FL,FL+1,FL+2,FL+3
+	DB	FL+4,FL+5,FL+6,FL+7
+	DB	FL+8,FL+9,FL+10,FL+11
+	DB	FL+12,FL+13,FL+14,FL+15
+
+	DB	EX+0,EX+1,EX+2,EX+3
+
+BULLET_COLR
+	DB	0,1,1,1,1
+	DB	1,1,1,1,1
+	DB	1,1,1,1,1,1
+	DB	1,1,1,1,1,1
+	DB	12,12
+	DB	1,1
+	DB	1,1,1,1
+	DB	1,1,1,1
+	DB	1,1,1,1
+	DB	1,1
+
+	DB	7,7,7,7,7,7,7,7
+	DB	7,7,7,7,7,7,7,7
+	DB	1,15,15,15
+
+LI1	HEX	008822AA822808003000
+LI2	HEX	00A00A2828282A00E800
+LI3	HEX	00A00A2828282AEEA8E6
+LI4	HEX	00AAAA82AA28E8AE2AA6
+LI5	HEX	00A00A000028E8AA2AAA
+LI6	HEX	00A00A00003820000800
+LI7	HEX	00882200000000000000
+
+	; Place BULLET sprite onto ripley position
+	; Y addon sprite to ripley
+APPEND	LDA	ADJUSTY-10,X
+	BMI	TRUE
+	CLC
+	ADC	RIPLEY_YL		; ripley y low	
+	STA	BULLET_YL		; move down
+	LDA	RIPLEY_YH
+	ADC	#0
+	STA	BULLET_YH
+	JMP	FAG
+TRUE	CLC
+	ADC	RIPLEY_YL		; add to ripley
+	STA	BULLET_YL		; to bullet
+	LDA	RIPLEY_YH		; high bit
+	SBC	#0
+	STA	BULLET_YH
+FAG	LDA	ADJUSTX-10,X
+	BMI	!MADONNA		; find direction as sing
+	CLC
+	ADC	RIPLEY_XL		; add to ripley
+	STA	BULLET_XL		; to bullet
+	LDA	RIPLEY_XH		; high bit
+	ADC	#0
+	STA	BULLET_XH
+	RTS
+
+!MADONNA	CLC
+	ADC	RIPLEY_XL		; add to ripley
+	STA	BULLET_XL		; to bullet
+	LDA	RIPLEY_XH		; high bit
+	SBC	#0
+	STA	BULLET_XH
+	RTS
+
+ADJUSTX	DB	14,12,12,-14,-12,-12
+	DB	15,14,13,-15,-14,-13
+	DB	24,-24
+	DB	36,-36
+	DB	14,14,-14,-14
+	DB	12,12,-12,-12
+	DB	12,12,-12,-12
+	DB	11,6
+ADJUSTY	DB	00,03,04,00,03,04
+	DB	10,13,14,10,13,14
+	DB	03,03
+	DB	26,26
+	DB	02,01,02,01
+	DB	05,04,05,04
+	DB	06,05,06,05
+	DB	-12,19
+
+
+	; Place all other sprites to screen from map position
+SPRITES_PLACE
+	LDX	PRISONER_FRAME	; do last enemy / pris allways
+	LDA	ENEMY_COL_TAB,X
+	STA	SPC7
+	LDA	ENEMY_SPR_TAB,X
+	STA	SPRITE7
+	LDX	#4		; allways set the prisoner
+	JSR	SET_CORDS		; copy only cord data
+	LDX	#MAX_SPRITES-2	; -1 for ripley bullet
+	LDY	#(MAX_SPRITES-2)*2
+SET_ALL	LDA	ENEMY_TYPE,X	; see if anything there
+	BEQ	SAM_PLUS		; not in use
+	LDA	CURRENT_XL,X
+	SEC
+	SBC	PIXEL_XL		; screen top left
+	STA	ANSWERL		; temp answer lo
+	LDA	CURRENT_XH,X
+	SBC	PIXEL_XH		; top left pixel screen
+	STA	ANSWERH		; temp answer hi
+	LDA	ANSWERL
+	CLC
+	ADC	#START_LEFT_X	; start of left edge
+	STA	X3,Y		; now is cord for enemy
+	LDA	ANSWERH		; x high byte
+	ADC	#0
+	STA	SPRITE_MSB,X	; top bit
+	BNE	LOOK_RIGHT1		; msb set see if off right
+	LDA	X3,Y		; new x cord
+	CMP	#OFF_LEFT_X+1	; off left side
+	BCS	OKSO_FAR		; check on first
+	BCC	SAM_PLUS		; less common as off
+
+LOOK_RIGHT1	CMP	#2	; way over 512 never on screen
+	BCS	SAM_PLUS
+	LDA	X3,Y		; this x cord
+	CMP	#OFF_RIGHT_X	; off right side
+	BCS	SAM_PLUS		; no display
+
+	; check for y position top screen window
+OKSO_FAR	LDA	CURRENT_YL,X
+	SEC
+	SBC	PIXEL_YL		; screen pixel cord
+	STA	ANSWERL		; temp answer lo
+	LDA	CURRENT_YH,X
+	SBC	PIXEL_YH		; screen pixel cord
+	STA	ANSWERH		; temp answer hi
+
+	LDA	ANSWERL		; no high bye for y 
+	CLC
+START3	ADC	#START_TOP_Y-1	; start of top y
+	STA	Y3,Y
+	LDA	ANSWERH		; use as answer may = &ffff
+	ADC	#0		; so ass start top >
+	BNE	SAM_PLUS		; not zero
+	LDA	Y3,Y		; back new	
+	CMP	#OFF_TOP_Y+1	; off top of screen
+	BCC	SAM_PLUS		; no diplay
+	CMP	#OFF_BOTTOM_Y
+	BCS	SAM_PLUS		; no display else leve set
+	DEY
+	DEY
+	DEX
+	BPL	SET_ALL		; dont do the first one (as bullet)
+	RTS
+
+SAM_PLUS	LDA	#0		; no y in sprite list
+	STA	Y3,Y
+	STA	X3,Y
+	STA	SPRITE_MSB,X
+	DEY
+	DEY
+	DEX			; rest of weapons
+	BPL	SET_ALL
+	RTS
+
+MAP_CORDS	LDA	#0		; working msb
+	LSR	SPRITE_MSB+0
+	ROR	A
+	LSR	SPRITE_MSB+1
+	ROR	A
+	LSR	SPRITE_MSB+2
+	ROR	A
+	LSR	SPRITE_MSB+3
+	ROR	A
+	LSR	SPRITE_MSB+4
+	ROR	A
+	ORA	MSB
+	STA	MSB
+	LDY	PLACEMENT+0
+	LDA	POI_VALES,Y
+	STA	SPRITE3
+	LDY	PLACEMENT+1
+	LDA	POI_VALES+1,Y
+	STA	SPRITE4
+	LDY	PLACEMENT+2
+	LDA	POI_VALES+2,Y
+	STA	SPRITE5
+	LDY	PLACEMENT+3
+	LDA	POI_VALES+3,Y
+	STA	SPRITE6
+	RTS
+
+ESPR1_MEM	EQU	SCREEN1-(4*64)	; use pointers before screen
+ESPR2_MEM	EQU	SCREEN1+(10*64)	; use pointers before screen
+
+E1_POINTER	EQU	(ESPR1_MEM-&C000)/64
+E2_POINTER	EQU	(ESPR2_MEM-&C000)/64
+
+POI_VALES	DB	E1_POINTER,E1_POINTER+1,E1_POINTER+2,E1_POINTER+3
+	DB	E2_POINTER,E2_POINTER+1,E2_POINTER+2,E2_POINTER+3
+
+	; need to read values and not copy until new set reached
+	; Copy sprite pointer from memory to current display bank
+
+ENEMY_COL_TAB
+	DB	BLACK
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	ORANGE
+	DB	BLUE
+	DB	GREEN
+	DB	GREEN
+	
+ENEMY_SPR_TAB
+	DB	BL		; blank sprite
+	DB	PR_SPR		; hang there
+	DB	PR_SPR+1
+	DB	PR_SPR+2
+	DB	PR_SPR+3
+
+	DB	PR_SPR+0		; 5 die
+	DB	PR_SPR+4
+	DB	PR_SPR+0
+	DB	PR_SPR+5
+	DB	PR_SPR+5
+
+	DB	PR_SPR+6		; 10 rescued
+	DB	DR_SPR		; blue drip (water)
+	DB	DR_SPR		; green drip (acid)
+	DB	SPIT_SPR		; enemy spit
+
+SPR1_MEML	DL	ESPR1_MEM,ESPR1_MEM+64,ESPR1_MEM+128,ESPR1_MEM+192
+SPR1_MEMH	DH	ESPR1_MEM,ESPR1_MEM+64,ESPR1_MEM+128,ESPR1_MEM+192
+SPR2_MEML	DL	ESPR2_MEM,ESPR2_MEM+64,ESPR2_MEM+128,ESPR2_MEM+192
+SPR2_MEMH	DH	ESPR2_MEM,ESPR2_MEM+64,ESPR2_MEM+128,ESPR2_MEM+192
+
+COPY_IT	LDA	ENEMY_FRAME,X
+	STA	TEMP		; save to temp
+	LDA	PLACEMENT,X		; what bank is sprite
+	BNE	COPY_IT1		; = 4 plot to first set of pointers
+	LDA	SPR2_MEML,X		; sprite mem low
+	STA	DEST_SPR1+1		; save to copy area
+	LDA	SPR2_MEMH,X		; sprite mem high
+	STA	DEST_SPR1+2
+	JMP	GO_COPY
+COPY_IT1	LDA	SPR1_MEML,X		; sprite mem low
+	STA	DEST_SPR1+1		; save to copy area
+	LDA	SPR1_MEMH,X		; sprite mem high
+	STA	DEST_SPR1+2
+GO_COPY	LDA	#0
+	LSR	TEMP		; frame * 64
+	ROR	A
+	LSR	TEMP
+	ROR	A
+	STA	SOURCE1+1		; low first strip
+	LDA	TEMP
+	CLC
+	ADC	#<ENEMY_MEM		; start of sprites all same high byte
+	STA	SOURCE1+2
+	LDY	#62
+SOURCE1	LDA	&FFFF,Y
+DEST_SPR1	STA	&FFFF,Y
+	DEY
+	BPL	SOURCE1
+NEXT_BANK	LDA	PLACEMENT,X
+	EOR	#4
+	STA	PLACEMENT,X	
+SET_CORDS	LDA	ENEMY_XL,X		; copy new cord position for this sprite
+	STA	CURRENT_XL,X
+	LDA	ENEMY_XH,X
+	STA	CURRENT_XH,X
+	LDA	ENEMY_YL,X
+	STA	CURRENT_YL,X
+	LDA	ENEMY_YH,X
+	STA	CURRENT_YH,X
+	RTS
+
+	; title high score IRQ and no NMI
+SETTIRQ	LDY	#2
+	JSR	SET_BITS
+	LDA	#1
+	STA	VICIMR
+	STA	VICIFR
+	LDA	#0
+	STA	VICCR1
+	LDA	#200
+	STA	RASTER
+	CLI
+	RTS
+
+SETIRQ	LDY	#0
+	JSR	SET_BITS
+	LDA	#1
+	STA	VICIMR
+	STA	VICIFR
+	LDA	#0
+	STA	VICCR1
+	STA	MOVE		; joystick move byte
+	STA	BLANKING
+	LDA	#255		; make sure all sprites enabled
+	STA	NOFLA+1
+	LDA	#250
+	STA	RASTER
+	CLI
+	RTS
+
+	; Used for disk loader no irq's or nmi's
+SETNOIRQ	LDY	#1
+	JSR	SET_BITS
+	LDA	#0
+	STA	VICIMR
+	STA	VICIFR
+	STA	VICCR1
+	STA	SID+&18		; no volume
+	RTS
+
+SET_BITS	SEI
+	LDA	#127
+	STA	CIA1ICR
+	STA	CIA2ICR
+	LDA	CIA1ICR
+	LDA	CIA2ICR
+	LDA	IRQ_TL,Y
+	STA	IRQVECTOR
+	LDA	IRQ_TH,Y
+	STA	IRQVECTOR+1
+	LDA	NMI_TL,Y
+	STA	NMIVECTOR
+	LDA	NMI_TH,Y
+	STA	NMIVECTOR+1
+	RTS
+
+IRQ_TL	DL	IRQ,IGNORE,TIRQ
+IRQ_TH	DH	IRQ,IGNORE,TIRQ
+NMI_TL	DL	NMI,IGNORE,IGNORE
+NMI_TH	DH	NMI,IGNORE,IGNORE
+
+SCREEN_ON	LDA	#&10		; ENABLE SCREEN DISPLAY
+	STA	SCREENENABLE
+!WAIT	CMP	SCREENTEST
+	BNE	!WAIT
+	RTS
+
+SCREEN_OFF	LDA	#0		; BLANK SCREEN TO BORDER
+	STA	SCREENENABLE
+!WAIT	CMP	SCREENTEST
+	BNE	!WAIT
+	RTS
+
+****************************************
+*	high score table stuff	*
+****************************************
+HOWMANY	EQU	5		; AMOUNT OF NAMES
+
+	; see if you are in high table
+CHECKPLAYER
+	LDX	#0
+INTABLE	LDY	OFFSET,X		; get where point to
+	LDA	SCOREHI		; score high
+	CMP	SCORETABH,Y
+	BCC	BELOW
+	BNE	INSERT
+	LDA	SCOREMI		; score midium
+	CMP	SCORETABM,Y
+	BCC	BELOW
+	BNE	INSERT
+	LDA	SCORELO		; score low
+	CMP	SCORETABL,Y
+	BCS	INSERT
+BELOW	INX
+	CPX	#HOWMANY
+	BNE	INTABLE
+	CLC			; not in table
+	RTS
+
+INSERT	STX	MIKE2+1		; placement of name
+	LDA	OFFSET+4		; LAST PLACED NAME KILLED OFF
+	STA	MIKE1		; FREE SPACE
+	LDY	MIKE2+1
+	CPY	#HOWMANY-1
+	BEQ	NOSHUFFEL
+	DEY
+	STY	MIKE2
+	LDY	#HOWMANY-1
+SHUFF	LDA	OFFSET-1,Y		; MOVE DOWN 1 PLACE
+	STA	OFFSET,Y
+	DEY
+	CPY	MIKE2
+	BNE	SHUFF
+NOSHUFFEL	LDY	MIKE2+1		; new place for name
+	LDA	MIKE1		; free space as last name
+	STA	OFFSET,Y		; gets knocked off table
+	TAY
+	LDA	SCORELO
+	STA	SCORETABL,Y
+	LDA	SCOREMI
+	STA	SCORETABM,Y
+	LDA	SCOREHI
+	STA	SCORETABH,Y
+	LDA	#"A"		; AAA to start with
+	STA	NAMEL1,Y
+	STA	NAMEL2,Y
+	STA	NAMEL3,Y
+	STA	NAMEL4,Y
+	STA	NAMEL5,Y
+	SEC			; name to enter
+	RTS			; Y as index to place
+
+HIGH_ST	EQU	0
+
+DISPLAYHIGH	LDA	#>SCREEN1+(HIGH_ST*40)+8
+	STA	SCREEN
+	STA	COLOUR
+	LDA	#<SCREEN1+(HIGH_ST*40)+8
+	STA	SCREEN+1
+	LDA	#<NYBBLE+(HIGH_ST*40)+8
+	STA	COLOUR+1
+	LDX	#255
+ALLNAMES	INX
+	LDY	#0
+PLOTNAMES	LDA	TSPRER,X
+	CMP	#255
+	BEQ	EXTR		; exit.
+	CMP	#253		; colour change
+	BNE	NOCOLCH
+	INX
+	LDA	TSPRER,X
+	STA	COLBYTE2+1
+	INX
+	JMP	PLOTNAMES		; advance on
+NOCOLCH	CMP	#254
+	BEQ	SKIPT
+	CMP	#32		; bodge up
+	BNE	SDD
+	LDA	#0		; allways blank in charsets
+SDD	STA	(SCREEN),Y
+	PHA
+	TYA
+	CLC			; c=0 allways
+	ADC	#40
+	TAY
+	PLA
+	BEQ	BLNK
+	ADC	#43		; other half
+BLNK	STA	(SCREEN),Y	
+COLBYTE2	LDA	#255		; colour nybble
+	STA	(COLOUR),Y
+	PHA
+	TYA
+	SEC
+	SBC	#40
+	TAY
+	PLA
+	STA	(COLOUR),Y
+SPACEY	INX
+	INY
+	BNE	PLOTNAMES	
+EXTR	RTS			; exit then
+
+SKIPT	LDA	SCREEN
+	CLC
+	ADC	#120		; two lines at a time
+	STA	SCREEN
+	STA	COLOUR
+	BCC	HIGHBY
+	INC	SCREEN+1
+	INC	COLOUR+1
+HIGHBY	JMP	ALLNAMES
+
+TSPRER	DB	253,1,"RANK     SCORE     NAME",254,254 ;,254
+SCOREP	DB	253,2," 1ST    6666660    M",&3A,"J",&3A,"A",254 ;,254
+	DB	253,3," 2ND    6666660    M",&3A,"J",&3A,"A",254 ;,254
+	DB	253,4," 3RD    6666660    M",&3A,"J",&3A,"A",254 ;,254
+	DB	253,5," 4TH    6666660    M",&3A,"J",&3A,"A",254 ;,254
+	DB	253,6," 5TH    6666660    M",&3A,"J",&3A,"A",255 ;,254
+
+INSERTN	LDX	#0		; SPRER TO DATA ABOVE
+	STX	TEMP
+ALLIN	LDY	TEMP
+	LDA	OFFSET,Y		; SPRER TO DATA SET
+	TAY
+	LDA	SCORETABH,Y		; SCORE HIGH
+	REPEAT	4
+	LSR	A
+	ORA	#"0"
+	STA	SCOREP+10,X
+	LDA	SCORETABH,Y
+	AND	#15
+	ORA	#"0"
+	STA	SCOREP+11,X
+
+	LDA	SCORETABM,Y		; SCORE MID
+	REPEAT	4
+	LSR	A
+	ORA	#"0"
+	STA	SCOREP+12,X
+	LDA	SCORETABM,Y
+	AND	#15
+	ORA	#"0"
+	STA	SCOREP+13,X
+
+	LDA	SCORETABL,Y		; SCORE LOW
+	REPEAT	4
+	LSR	A
+	ORA	#"0"
+	STA	SCOREP+14,X
+	LDA	SCORETABL,Y
+	AND	#15
+	ORA	#"0"
+	STA	SCOREP+15,X
+
+	LDA	NAMEL1,Y		; first letter
+	STA	SCOREP+21,X
+	LDA	NAMEL2,Y		; second letter
+	STA	SCOREP+22,X
+	LDA	NAMEL3,Y		; third letter
+	STA	SCOREP+23,X
+	LDA	NAMEL4,Y
+	STA	SCOREP+24,X
+	LDA	NAMEL5,Y
+	STA	SCOREP+25,X
+	TXA
+	CLC
+	ADC	#27 ;8
+	TAX
+	INC	TEMP
+	LDA	TEMP
+	CMP	#HOWMANY		; AMOUNT OF NAMES
+	BCC	ALLIN
+
+	LDY	#0
+ALLLIST	LDX	MULTABLE,Y
+MORZPS	LDA	SCOREP+10,X
+	CMP	#"0"
+	BNE	NEXLINE
+	LDA	#32		; STRIP TOP ZPS
+	STA	SCOREP+10,X
+	INX
+	BNE	MORZPS		; MORE OF THEM
+NEXLINE	INY
+	CPY	#HOWMANY
+	BNE	ALLLIST
+	RTS
+
+MULTABLE	DB	0,1*27,2*27,3*27,4*27
+
+SCORETABL	DB	&00,&00,&00,&50,&25	; SCORES
+SCORETABM	DB	&00,&50,&25,&12,&06
+SCORETABH	DB	&01,&00,&00,&00,&00
+OFFSET	DB	0,1,2,3,4
+NAMEL1	DB	"MSRSM"
+NAMEL2	DB	&3A,"IOTA"
+NAMEL3	DB	"JMBER"
+NAMEL4	DB	&3A,"OIVK"
+NAMEL5	DB	"ANNE "
+
+****************************************
+*	Tunnels Control		*
+****************************************
+
+CONTROL_1	EQU	1	; disable tunnel down
+CONTROL_2	EQU	2	; disable tunnel along
+CONTROL_3	EQU	3	; enable tunnel downwards, left side
+CONTROL_4	EQU	4	; enable tunnel downwards, right side
+CONTROL_5	EQU	5	; enable tunnel along, above source
+CONTROL_6	EQU	6	; enable tunnel along, below source
+CONTROL_7	EQU	7	; start of tunnel section
+CONTROL_8	EQU	8	; end of level in tunnel
+CONTROL_10	EQU	10	; doors opening position
+
+DOOR_CHECK	JSR	GET_MAP_XY2
+	LDX	#255		; start scan from 1 (0 dummy entry)
+FTS	INX
+	LDA	DOOR_Y,X		; get entry
+	CMP	TILE_YPOS		; same level
+	BCC	FTS		; not same
+	BEQ	GMATCH		; same
+NOT_USE	RTS			; must be bigger quit
+
+GMATCH	LDA	DOOR_X,X		; is x a match
+	CMP	TILE_XPOS		; exact match
+	BNE	FTS
+	LDA	DOOR_CONTROL	; already been called
+	BNE	NOT_USE		; dont do anything
+	LDA	DOOR_SIZE,X		; see if wanted it permentaly closed
+	BMI	NOT_USE
+	STX	DOOR_NUMBER
+	LDA	#0
+	STA	DOOR_POSITION	; start at bottom
+	LDA	#1
+	STA	DOOR_SPEED		; set straight away
+	LDA	#128
+	STA	DOOR_CONTROL	; open door
+	LDA	#25
+	JMP	SETFX
+	;RTS	
+
+TUNNEL_CONTROL
+	LDA	ACTION
+	CMP	#CROUCH_ACT		; stand run and jump check doors
+	BCC	DOOR_CHECK		; do tunnel at relevent part
+	CMP	#CLIMB_ACT		; can climb in tunnels
+	BEQ	FIND_OUT
+	CMP	#CRAWL_ACT		; crawl on floor
+	BNE	NOT_USE
+	JSR	GET_MAP_XY		; tile position in crawl
+	JMP	DO_IT_NOW
+FIND_OUT	JSR	GET_MAP_XY1		; tile position in climb
+DO_IT_NOW	LDY	#255		; start scan from 0
+NO_TS	INY
+	LDA	TUNNEL_TAB_Y,Y	; get entry
+	CMP	TILE_YPOS		; same level
+	BCC	NO_TS		; not same
+	BEQ	MATCH		; same
+NO_USE	RTS			; must be bigger quit
+
+MATCH	LDA	TUNNEL_TAB_X,Y	; is x a match
+	CMP	TILE_XPOS		; exact match
+	BNE	NO_TS
+	LDA	TUNNEL_CONT,Y	; do action already
+	BEQ	NO_USE
+	CMP	#CONTROL_8		; reached end of level in  tunnel
+	BNE	PARL
+	LDA	#1
+	STA	REACHED_END		; all hell brakes loose
+	RTS
+
+PARL	CMP	#CONTROL_7		; get out of tunnel section
+	BNE	TVL
+	JSR	UNHIDE_MAP		; unhide whole map
+	JSR	HIDE_TUNNELS	; disable tunnels
+	LDA	#OTDUCT_ACT
+	STA	ACTION
+	LDA	#24
+	JSR	MOVEX_RIPLEY
+	LDA	DIR
+	EOR	#128
+	STA	DIR
+	LDA	#1
+	STA	SPEED		; do it now
+	LDA	#0
+	STA	INDEX		; go backwards
+	INC	IN_TUNNELS		; now out of tunnel mode
+	JMP	RE_PLOT
+
+	; CONTROL_1
+TVL	CMP	#CONTROL_1
+	BNE	ABITCH
+
+DO_CONTROL1
+	LDA	LASTBY		; turned off already
+	BEQ	EXIT
+	LDY	INDEX_Y		; get where turned on
+	STA	TUNNEL_CONT,Y	; Set back where last activated
+	LDA	#0		; tunnel no active now
+	STA	LASTBY
+
+	LDY	TUNNELY_ONX		; tile x position
+	LDX	TUNNELY_ONY		; tile x position
+	JSR	HIDE2		; now hide the last tunnel
+	LDY	TUNNELX_ONX		; tile x position
+	LDX	TUNNELX_ONY		; tile y position
+	JSR	UNHIDE1		; first show of tunnel
+	JMP	RE_PLOT
+			
+	; CONTROL_2
+ABITCH	CMP	#CONTROL_2
+	BNE	FLOB
+
+	LDA	LASTBX		; turned off already
+	BEQ	EXIT
+	LDY	INDEX_X
+	STA	TUNNEL_CONT,Y	; put back control byte
+	LDA	#0		; tunnel no active now
+	STA	LASTBX
+
+	LDY	TUNNELX_ONX		; tile x position
+	LDX	TUNNELX_ONY		; tile x position
+	JSR	HIDE1		; now hide the last tunnel
+	LDY	TUNNELY_ONX		; tile x position
+	LDX	TUNNELY_ONY		; tile y position
+	JSR	UNHIDE2		; first show of tunnel
+	JMP	RE_PLOT
+
+EXIT	RTS
+
+FLOB	CMP	#CONTROL_3		; enable tunnel downwards, left side
+	BNE	NOTU2
+	LDA	LASTBY		; tunnel on already
+	BNE	EXIT		; do nothing
+	LDA	TUNNEL_CONT,Y	; get this control
+	STA	LASTBY		; save to temp
+	STY	INDEX_Y		; save this index position for control
+
+	LDY	TILE_XPOS		; when control byte was
+	DEY
+	STY	TUNNELY_ONX		; tile x position
+	LDX	TILE_YPOS
+	STX	TUNNELY_ONY		; tile y position
+	JSR	UNHIDE2		; first show of tunnel
+	JMP	RE_PLOT
+
+NOTU2	CMP	#CONTROL_4		; enable tunnel downwards, right side
+	BNE	NOPL
+	LDA	LASTBY		; tunnel on already
+	BNE	EXIT		; do nothing
+	LDA	TUNNEL_CONT,Y	; get this control
+	STA	LASTBY		; save to temp
+	STY	INDEX_Y		; save this index position for control
+
+	LDA	TILE_XPOS
+	SEC
+	SBC	#3		; will be -4 as above will never overflow
+	STA	TUNNELY_ONX		; tile x position
+	TAY
+	LDX	TILE_YPOS
+	STX	TUNNELY_ONY		; tile y position
+	JSR	UNHIDE2		; want to see tunnel down screen
+	JMP	RE_PLOT
+
+NOPL	CMP	#CONTROL_5		; enable tunnel along, left side below
+	BNE	NOEN
+	LDA	LASTBX
+	BNE	QUIT2
+	LDA	TUNNEL_CONT,Y	; get this control
+	STA	LASTBX		; save to temp
+	STY	INDEX_X		; save this index position for control
+
+	LDY	TILE_XPOS
+	STY	TUNNELX_ONX		; tile x position
+	LDA	TILE_YPOS
+	SEC
+	SBC	#3		; minus 4
+	STA	TUNNELX_ONY		; tile y position
+	TAX
+	JSR	UNHIDE1		; first show of tunnel
+	JMP	RE_PLOT
+
+NOEN	CMP	#CONTROL_6		; enable tunnel along, left side above
+	BNE	QUIT2
+ENAB2	LDA	LASTBX
+	BNE	QUIT2
+	LDA	TUNNEL_CONT,Y	; get this control
+	STA	LASTBX		; save to temp
+	STY	INDEX_X		; save this index position for control
+
+	LDY	TILE_XPOS
+	STY	TUNNELX_ONX		; tile x position
+	LDX	TILE_YPOS
+	STX	TUNNELX_ONY		; tile y position
+	JSR	UNHIDE1		; first show of tunnel
+	JMP	RE_PLOT
+
+	; Get ripley map X and Y tile positions
+GET_MAP_XY1
+	LDA	#16		; somewhere in middle
+	JSR	GET_Y
+GET_X	LDA	#24/2		; in middle of ripley
+	CLC
+	ADC	RIPLEY_XL		; and divide down for tile place
+	STA	TILE_XPOS
+	LDA	RIPLEY_XH
+	ADC	#0
+	LSR	A
+	ROR	TILE_XPOS		; / 2
+	LSR	A
+	ROR	TILE_XPOS		; / 4
+	LSR	A
+	ROR	TILE_XPOS		; / 8
+	LSR	A
+	ROR	TILE_XPOS		; /16
+QUIT2	RTS
+
+GET_MAP_XY2
+	LDX	#24
+	LDY	#0
+	JMP	GET_NOW
+
+GET_MAP_XY	LDX	#48-16
+	LDY	#24-8
+GET_NOW	STX	FIRST_AD+1
+	STY	SEC_AD+1
+	LDA	#20		; in second sprite
+	JSR	GET_Y
+	LDA	RIPLEY_XL		; and divide down for tile place
+	BIT	DIR
+	BMI	SUBFROM		; look at left side
+	CLC
+FIRST_AD	ADC	#48-16		; right side of sprite
+	STA	TILE_XPOS
+	LDA	RIPLEY_XH
+	ADC	#0
+	JMP	SAVE_EM		; and do rest below
+
+SUBFROM	SEC
+SEC_AD	SBC	#24-8
+	STA	TILE_XPOS
+	LDA	RIPLEY_XH
+	SBC	#0
+SAVE_EM	LSR	A
+	ROR	TILE_XPOS
+	LSR	A
+	ROR	TILE_XPOS
+	LSR	A
+	ROR	TILE_XPOS
+	LSR	A
+	ROR	TILE_XPOS
+	RTS
+
+	; get tile position relitive ripley_y + A
+	; and retain the Y position in TILE_YPOS
+	; map position start in MAP_MEM0
+GET_Y_MEM	JSR	GET_Y
+	LDY	TILE_YPOS		; tile offset = map pos / 16
+	LDA	GMAP_L,Y		; map memory low
+	STA	MAP_MEM0
+	LDA	GMAP_H,Y		; map memory hi
+	STA	MAP_MEM0+1
+	RTS
+
+GET_Y	CLC
+	ADC	RIPLEY_YL		; place down sprite for detection
+	STA	TILE_YPOS		; temp save
+	LDA	RIPLEY_YH
+	ADC	#0
+	LSR	A
+	ROR	TILE_YPOS		; / 2
+	LSR	A
+	ROR	TILE_YPOS		; / 4
+	LSR	A
+	ROR	TILE_YPOS		; / 8
+	LSR	A
+	ROR	TILE_YPOS		; / 16
+	RTS
+
+****************************************
+*	Hide total tunnel map	*
+****************************************
+HIDE_TUNNELS
+	LDX	#0
+HIDE_ALL	LDA	TXSTART,X
+	CMP	#255
+	BEQ	END_TAB
+	STA	STARTX+1		; start across
+	LDA	TXSTOP,X
+	STA	ENDX+1		; stop across
+	LDA	TYSTART,X
+	STA	MIKE2		; start down
+	LDA	TYSTOP,X
+	STA	MIKE2+1		; stop down
+ROMULAN	LDY	MIKE2		; downward position
+	LDA	GMAP_L+0,Y
+	STA	MIKE1+0
+	LDA	GMAP_H+0,Y
+	STA	MIKE1+1
+STARTX	LDY	#255		; start x
+LINES_W	LDA	(MIKE1),Y		; get first part
+	BEQ	SKP		; leave zero alone (must do)
+	ORA	#128
+	STA	(MIKE1),Y
+SKP	INY
+ENDX	CPY	#255		; end of line
+	BNE	LINES_W
+	INC	MIKE2
+	LDA	MIKE2
+	CMP	MIKE2+1		; at bottom
+	BNE	ROMULAN
+	INX
+	BNE	HIDE_ALL
+END_TAB	RTS
+
+****************************************
+*	Hide/Unhihe total map	*
+****************************************
+UNHIDE_MAP	LDX	#&29		; AND #&7F
+	LDY	#&7F
+	JMP	GDOIT
+HIDE_MAP	LDX	#9		; ORA #&80
+	LDY	#&80
+GDOIT	STX	PACTION
+	STY	PACTION+1
+	LDA	#<MAP_START
+	STA	MIKE1+1		; high byte
+	LDA	#>MAP_START
+	STA	MIKE1+0		; low byte
+	LDX	SIZEY		; y amount down
+WHOLE_MAP	LDY	SIZEX		; no bigger then 128 as BPL used
+FIRST_LIN	LDA	(MIKE1),Y		; get first part
+	BEQ	NOCH1		; leave zero alone (must do)
+PACTION	ORA	#128
+	STA	(MIKE1),Y
+NOCH1	DEY
+	BPL	FIRST_LIN
+	LDA	MIKE1
+	CLC
+	ADC	SIZEX
+	STA	MIKE1
+	BCC	!CARRY
+	INC	MIKE1+1
+!CARRY	DEX
+	BPL	WHOLE_MAP
+	RTS
+
+	;	memory for tunnels along screen
+GETMEM	LDA	GMAP_L+0,X
+	STA	MAP_MEM1+0
+	LDA	GMAP_H+0,X
+	STA	MAP_MEM1+1
+
+	LDA	GMAP_L+1,X
+	STA	MAP_MEM2+0
+	LDA	GMAP_H+1,X
+	STA	MAP_MEM2+1
+
+	LDA	GMAP_L+2,X
+	STA	MAP_MEM3+0
+	LDA	GMAP_H+2,X
+	STA	MAP_MEM3+1
+
+	LDA	GMAP_L+3,X
+	STA	MAP_MEM4+0
+	LDA	GMAP_H+3,X
+	STA	MAP_MEM4+1
+	RTS
+
+****************************************
+*	Tunnel info		*
+****************************************
+	; For HIDE1,2 and UNHIDE1,2
+	; X = start Yoffset tile position down screen
+	; Y = start Xoffset into map
+	; Tunnels are 4 tiles high for along screen
+	; And 5 tiles wide for downward ones
+
+	; unhide left to right along
+UN_LOOP1	LDA	(MAP_MEM1),Y
+	BEQ	END_THIS_WAY	; blank tile end of tunnel
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	LDA	(MAP_MEM2),Y
+	AND	#%01111111
+	STA	(MAP_MEM2),Y
+	LDA	(MAP_MEM3),Y
+	AND	#%01111111
+	STA	(MAP_MEM3),Y
+	LDA	(MAP_MEM4),Y
+	AND	#%01111111
+	STA	(MAP_MEM4),Y
+	INY			; next place along
+	CPY	SIZEX		; right of mapx
+	BCC	UN_LOOP1		; more to do
+END_THIS_WAY
+	RTS
+
+****************************************
+*	Uhide tunnel along screen	*
+****************************************
+UNHIDE1	JSR	GETMEM
+	; Scan left to right firstly (iny until data=0 or right of map
+	STY	TEMP		; save current y offset into map
+	JSR	UN_LOOP1		; left to right firstly
+	LDY	TEMP		; start offset in
+	BEQ	ALL_DONE1		; already at left edge
+UN_LOOP2	DEY			; step leftwards firstly
+UNHIDE_RL	LDA	(MAP_MEM1),Y
+	BEQ	ALL_DONE1		; blank tile end of tunnel 
+	AND	#%01111111		; mask
+	STA	(MAP_MEM1),Y
+	LDA	(MAP_MEM2),Y
+	AND	#%01111111
+	STA	(MAP_MEM2),Y
+	LDA	(MAP_MEM3),Y
+	AND	#%01111111
+	STA	(MAP_MEM3),Y
+	LDA	(MAP_MEM4),Y
+	AND	#%01111111
+	STA	(MAP_MEM4),Y
+	CPY	#0		; start of mapx
+	BNE	UN_LOOP2
+ALL_DONE1	RTS
+
+****************************************
+*	Hide tunnel along screen	*
+****************************************
+HIDE1	JSR	GETMEM
+	; Scan left to right firstly (iny until data=0 or right of map
+	STY	TEMP		; save current y offset into map
+H_LOOP1	LDA	(MAP_MEM1),Y
+	BEQ	END_THIS_WAY2	; blank tile end of tunnel
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	LDA	(MAP_MEM2),Y
+	ORA	#%10000000
+	STA	(MAP_MEM2),Y
+	LDA	(MAP_MEM3),Y
+	ORA	#%10000000
+	STA	(MAP_MEM3),Y
+	LDA	(MAP_MEM4),Y
+	ORA	#%10000000
+	STA	(MAP_MEM4),Y
+	INY			; next place along
+	CPY	SIZEX		; right of mapx
+	BCC	H_LOOP1		; more to do
+END_THIS_WAY2
+	LDY	TEMP		; start offset in
+	BEQ	ALL_DONE2		; already at left edge
+H_LOOP2	DEY			; step leftwards firstly
+	LDA	(MAP_MEM1),Y
+	BEQ	ALL_DONE2		; blank tile end of tunnel 
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	LDA	(MAP_MEM2),Y
+	ORA	#%10000000
+	STA	(MAP_MEM2),Y
+	LDA	(MAP_MEM3),Y
+	ORA	#%10000000
+	STA	(MAP_MEM3),Y
+	LDA	(MAP_MEM4),Y
+	ORA	#%10000000
+	STA	(MAP_MEM4),Y
+	CPY	#0		; start of mapx
+	BNE	H_LOOP2
+ALL_DONE2	RTS
+
+****************************************
+*	Unhide tunnel down screen	*
+****************************************
+UNHIDE2	STY	UN_LOOP3+1		; save start tile in	
+	STY	UN_LOOP4+1
+	STX	TEMP		; save y tile pos for later
+UN_LOOP3	LDY	#255		; start tile offset to map
+	LDA	GMAP_L+0,X
+	STA	MAP_MEM1+0
+	LDA	GMAP_H+0,X
+	STA	MAP_MEM1+1
+	LDA	(MAP_MEM1),Y
+	BEQ	END_THIS_WAY3
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INX			; next tile down screen
+	CPX	SIZEY		; bottom of mapy
+	BCC	UN_LOOP3		; more to do
+
+END_THIS_WAY3
+	LDX	TEMP		; start offset in
+	BEQ	ALL_DONE3		; already at left edge
+UN_LOOP4	LDY	#255		; start tile offset to map
+	DEX			; back one first
+	LDA	GMAP_L+0,X
+	STA	MAP_MEM1+0
+	LDA	GMAP_H+0,X
+	STA	MAP_MEM1+1
+	LDA	(MAP_MEM1),Y
+	BEQ	ALL_DONE3
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	AND	#%01111111
+	STA	(MAP_MEM1),Y
+	CPX	#0		; start top of mapy
+	BNE	UN_LOOP4
+ALL_DONE3	RTS
+
+****************************************
+*	Hide tunnel down screen	*
+****************************************
+HIDE2	STY	H_LOOP3+1		; save start tile in	
+	STY	H_LOOP4+1
+	STX	TEMP		; save y tile pos for later
+H_LOOP3	LDY	#255		; start tile offset to map
+	LDA	GMAP_L+0,X
+	STA	MAP_MEM1+0
+	LDA	GMAP_H+0,X
+	STA	MAP_MEM1+1
+	LDA	(MAP_MEM1),Y
+	BEQ	END_THIS_WAY4
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INX			; next tile down screen
+	CPX	SIZEY		; bottom of mapy
+	BCC	H_LOOP3		; more to do
+
+END_THIS_WAY4
+	LDX	TEMP		; start offset in
+	BEQ	ALL_DONE4		; already at left edge
+H_LOOP4	LDY	#255		; start tile offset to map
+	DEX			; back one first
+	LDA	GMAP_L+0,X
+	STA	MAP_MEM1+0
+	LDA	GMAP_H+0,X
+	STA	MAP_MEM1+1
+	LDA	(MAP_MEM1),Y
+	BEQ	ALL_DONE4
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	INY
+	LDA	(MAP_MEM1),Y
+	ORA	#%10000000
+	STA	(MAP_MEM1),Y
+	CPX	#0		; start top of mapy
+	BNE	H_LOOP4
+ALL_DONE4	RTS
+
+PANNEL_COL	LDX	#40*6
+PLOTPAN	LDY	PSCREEN+(PANY*40)-1,X	; from inside title charset
+	LDA	PAN_COL,Y		; get colour memory
+	STA	NYBBLE+(PANY*40)-1,X
+	DEX
+	BNE	PLOTPAN
+	RTS
+
+	; do a cls for title screen
+CLG	LDA	#0
+	LDY	#200
+!LOOP	STA	SCREEN1-1,Y
+	STA	SCREEN1+200-1,Y
+	STA	SCREEN1+400-1,Y
+	STA	SCREEN1+600-1,Y
+	STA	SCREEN1+800-1,Y
+	DEY
+	BNE	!LOOP	
+	RTS
+
+	; add to score A lo Y hi in BCD
+SCOREADD	CLC
+	SED
+	ADC	SCORELO
+	STA	SCORELO
+	LDA	SCOREMI
+	ADC	#0
+	STA	SCOREMI
+	LDA	SCOREHI
+	ADC	#0
+	CLD
+	STA	SCOREHI
+	RTS
+
+RANDOM	LDA	SEED
+	ASL	A
+	ASL	A
+	CLC
+	ADC	SEED
+	CLC
+	ADC	#21
+	STA	SEED
+	RTS
+
+****************************************
+*	Display Weapon Character	*
+****************************************
+
+WEAPON_MEM	EQU	PSCREEN+21+(PANY*40)	; weapons pannel place
+WEAPON_COL	EQU	NYBBLE+21+(PANY*40)
+TRACK_MEM	EQU	PSCREEN+31+(PANY+1)*40	; motion tracker place
+TRACK_COL	EQU	NYBBLE+31+(PANY+1)*40
+
+	; Plot weapon type as number display indicates
+PLOT_WEAP	LDX	CURRENT_WEAPON
+LAST_PLOT	CPX	#255		; when plot same dont do it (save time)
+	BNE	DIFF_ONE		; new one to plot
+	RTS			; same dont plot
+
+DIFF_ONE	STX	LAST_PLOT+1		; save new weapon that will be plotted
+DIFF	LDA	WEAP_MEML,X		; fetch character memory
+	STA	MIKE1
+	LDA	WEAP_MEMH,X
+	STA	MIKE1+1
+	LDA	#5		; y lenght to plot
+	STA	MIKE2
+	LDX	#0		; screen start index
+
+PLOT	LDY	#0
+	LDA	(MIKE1),Y
+	STA	WEAPON_MEM,X	; where to plot
+	TAY
+	LDA	PAN_COL,Y
+	STA	WEAPON_COL,X
+
+	LDY	#1
+	LDA	(MIKE1),Y
+	STA	WEAPON_MEM+1,X
+	TAY
+	LDA	PAN_COL,Y
+	STA	WEAPON_COL+1,X
+
+	LDY	#2
+	LDA	(MIKE1),Y
+	STA	WEAPON_MEM+2,X
+	TAY
+	LDA	PAN_COL,Y
+	STA	WEAPON_COL+2,X
+	TXA			; x as screen offset
+	CLC			; so advance
+	ADC	#40		; next line down pannel
+	TAX
+	LDA	MIKE1		; advance data on
+	ADC	#3		; note C=0 allways
+	STA	MIKE1		; and never an overflow (as data on bound)
+	DEC	MIKE2		; lines to plot
+	BNE	PLOT		; do some more
+	RTS
+
+MOTION_TON	LDX	#>TRACK_ON
+	LDY	#<TRACK_ON
+	JMP	PLOT_TR
+MOTION_TOF	LDX	#>TRACK_OFF
+	LDY	#<TRACK_OFF
+PLOT_TR	STX	MIKE1
+	STY	MIKE1+1
+	LDA	#5
+	STA	MIKE2
+	LDX	#0
+PLOT1	LDY	#0
+	LDA	(MIKE1),Y
+	STA	TRACK_MEM,X	; where to plot
+	TAY
+	LDA	PAN_COL,Y
+	STA	TRACK_COL,X
+
+	LDY	#1
+	LDA	(MIKE1),Y
+	STA	TRACK_MEM+1,X
+	TAY
+	LDA	PAN_COL,Y
+	STA	TRACK_COL+1,X
+
+	LDY	#2
+	LDA	(MIKE1),Y
+	STA	TRACK_MEM+2,X
+	TAY
+	LDA	PAN_COL,Y
+	STA	TRACK_COL+2,X
+
+	LDY	#3
+	LDA	(MIKE1),Y
+	STA	TRACK_MEM+3,X
+	TAY
+	LDA	PAN_COL,Y
+	STA	TRACK_COL+3,X
+
+	LDY	#4
+	LDA	(MIKE1),Y
+	STA	TRACK_MEM+4,X
+	TAY
+	LDA	PAN_COL,Y
+	STA	TRACK_COL+4,X
+
+	TXA
+	CLC
+	ADC	#40
+	TAX
+	LDA	MIKE1
+	ADC	#5
+	STA	MIKE1
+	BCC	TAND
+	INC	MIKE1+1
+TAND	DEC	MIKE2
+	BNE	PLOT1
+	RTS
+
+WEAP_MEML	DL	PULSE_CHR		; 0
+	DL	FLAME_CHR		; 1
+	DL	GRENAD_CHR		; 4
+	DL	HAND_CHR		; 2
+WEAP_MEMH	DH	PULSE_CHR		; 0
+	DH	FLAME_CHR		; 1
+	DH	GRENAD_CHR		; 4
+	DH	HAND_CHR		; 2
+
+****************************************
+*	PANNEL STUFF		*
+****************************************
+	; Pannel has the following information on it
+	; Energy display (on TV screen)
+	; Ammo in weapon (two digit, digital counter type 24 by 16)
+	; Motion tracker
+	; Weapon in use
+	; Weapons avaiable hilighted when in use
+	; Score six digits
+
+ENERGY_CHR	EQU	&15	; start character for energy bar
+
+	; plot pannel values (score lives time)
+PPANEL	JSR	PLOT_WEAP		; plot weapon graphic
+	LDA	ENERGY		; energy left in ripley
+LAST_ENG	CMP	#255
+	BEQ	NO_ENERGY
+	STA	LAST_ENG+1
+	LSR	A
+	LSR	A
+	STA	TEMP		; amount to do
+	LDY	#ST_ENERGY/4	; max plot in pixels
+	LDA	#0
+	TAX			; index to plot
+WIPE_FIRST	CPY	TEMP		; at point of got
+	BEQ	START_AL		; reach point
+	STA	TCHARSET+(8*ENERGY_CHR),X
+	INX
+	DEY
+	BNE	WIPE_FIRST
+	JMP	NO_ENERGY		; all plotted blank	
+
+START_AL	LDA	#255
+FILL_IN	STA	TCHARSET+(8*ENERGY_CHR),X
+	INX
+	DEY
+	BNE	FILL_IN
+
+NO_ENERGY	LDX	#13
+	LDA	TIMER_HIGH
+	JSR	BOTB
+	INX
+	LDA	TIMER_LOW
+	JSR	TOPB
+	LDX	#18
+	LDA	TO_RESCUE		; use zp as bit quicker
+	SEC
+	SBC	RESCUED
+LAST_RES	CMP	#255
+	BEQ	!SAME
+	STA	LAST_RES+1		; if same as before
+	JSR	SING_DEC		; single decimal value
+!SAME	LDX	#6
+	LDA	SCOREHI
+	;STA	MIKE1		; save dividend
+	;JSR	DIVID		; divid /10
+	JSR	BOTB	;TOPB
+	LDA	SCOREMI
+	;STA	MIKE1		; save dividend
+	;JSR	DIVID		; divid /10
+	JSR	TOPB
+	LDA	SCORELO
+	;STA	MIKE1		; save dividend
+	;JSR	DIVID		; divid /10
+	JSR	TOPB
+	LDY	CURRENT_WEAPON	; selected weapon
+	LDA	ROUNDS,Y		; get wanted display value
+	STA	MIKE1		; save dividend
+	JSR	DIVID		; divid /10
+	LDX	#27
+	JSR	BOTB
+	JSR	DIVID
+	LDX	#26
+	JSR	BOTB
+	JSR	DIVID
+	LDX	#25
+	JMP	BOTB
+
+TOPB	PHA
+	AND	#%11110000		; div 16 * 2
+	LSR	A
+	LSR	A
+	LSR	A
+	CLC
+	ADC	#1
+	STA	PSCREEN+((PANY+1)*40),X
+	ADC	#1
+	STA	PSCREEN+((PANY+2)*40),X
+	INX
+	PLA
+BOTB	AND	#15
+	ASL	A
+	ADC	#1
+	STA	PSCREEN+((PANY+1)*40),X
+	ADC	#1
+	STA	PSCREEN+((PANY+2)*40),X
+	INX			; next along
+	RTS			; colour memory allways set
+
+SING_DEC	STA	MIKE1
+	JSR	DIVID		; divide by 10
+	PHA
+	LDA	MIKE1
+ 	JSR	BOTB		; remainder first
+	PLA
+	JMP	BOTB
+
+	; div by 10
+DIVID	LDA	#0
+	ASL	MIKE1	
+	LDY	#8
+LOOP	ROL	A
+	CMP	#10
+	BCC	SKIP
+	SBC	#10
+SKIP	ROL	MIKE1
+	DEY
+	BNE	LOOP
+	RTS
+

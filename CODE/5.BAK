@@ -1,0 +1,1386 @@
+****************************************
+*	Update scroll X		*
+****************************************
+UP_SCROLLX	LDA	RIPLEY_XL		; ripley map pos
+	SEC			; - screen map gives pixel screen
+	SBC	PIXEL_XL		; length
+	STA	LENGTH+1
+	LDA	RIPLEY_XH
+	SBC	PIXEL_XH
+	;BNE	MV_RIGHT		; high set > 256 no scroll
+	BMI	MV_LEFT
+	BNE	MV_RIGHT
+LENGTH	LDA	#255
+	CMP	#XMAP_STOP-BOX_X	; stop box at left edge
+	BCC	MV_LEFT		; move ripley right (if possible)
+	CMP	#XMAP_STOP+BOX_X	; stop box at edge
+	BCS	MV_RIGHT
+	; C=0			; no scroll
+	RTS
+
+	; Scroll screen right
+MV_RIGHT	LDA	XOFFSET		; tile at the right of map
+	CMP	TILEX		; smc
+	BCS	RIGHT_EDGE		; yes
+NOWSCROLL2	LDA	#2		; no then do a scroll
+	STA	SCROLLACTION
+	SEC			; do to scroll
+	RTS
+
+RIGHT_EDGE	LDA	TINX		; and TINX=0
+	BEQ	NOWSCROLL2
+	LDA	XSCROLL		; then right side
+	BNE	NOWSCROLL2
+	CLC			; no scroll
+	RTS
+
+	; move ripley right with scroll (if able to)
+MV_LEFT	LDA	XOFFSET		; when XOFFSET=0
+	ORA	TINX		; and TINX=0
+	BEQ	LEFT_EDGE		; can scroll
+NOWSCROLL1	LDA	#1
+	STA	SCROLLACTION	; return for nmi control for
+	SEC			; do scroll
+	RTS
+	
+LEFT_EDGE	LDA	XSCROLL		; else at left of screen
+	CMP	#6		; if when scroll = 6
+	BNE	NOWSCROLL1
+	CLC			; no scroll
+	RTS
+
+****************************************
+*	Update Scroll Y		*	
+****************************************
+UP_SCROLLY	LDA	RIPLEY_YL		; same as for x
+	SEC			; but in y
+	SBC	PIXEL_YL
+	STA	LENGTH1+1
+	LDA	RIPLEY_YH
+	SBC	PIXEL_YH
+	BMI	MV_UP
+	BNE	MV_DOWN
+LENGTH1	LDA	#255
+	CMP	#YMAP_STOP-BOX_Y	; below top of stop box
+	BCC	MV_UP		; move ripley only
+	CMP	#YMAP_STOP+BOX_Y	; below box y
+	BCS	MV_DOWN
+	; C=0			; no scroll
+	RTS
+
+	; Scroll screen up
+MV_UP	LDA	YOFFSET		; when YOFFSET=0
+	ORA	TINY		; and TINY=0
+	BEQ	TOP_EDGE
+NOWSCROLL3	LDA	#3
+	STA	SCROLLACTION
+	SEC			; do scroll
+	RTS
+
+TOP_EDGE	LDA	YSCROLL		; then top of screen
+	CMP	#6		; if when scroll = 6
+	BNE	NOWSCROLL3
+	CLC			; no scroll
+	RTS
+
+	; Try to scroll down screen
+MV_DOWN	LDA	YOFFSET
+	CMP	TILEY		; max Y
+	BCS	BOT_EDGE
+NOWSCROLL4	LDA	#4
+	STA	SCROLLACTION
+	SEC			; do scroll
+	RTS
+
+BOT_EDGE	LDA	TINY		; TINY<>0
+	ORA	YSCROLL		; and scroll=0
+	BNE	NOWSCROLL4
+	CLC			; no scroll
+	RTS
+
+****************************************
+*	Utils for ripleys movements	*
+****************************************
+	; Add to ripleys y but store to bullet
+MOVE_ADDY	CMP	#0
+	BMI	!NEGITIVE
+	CLC
+	ADC	RIPLEY_YL
+	STA	BULLET_YL
+	LDA	RIPLEY_YH
+	ADC	#0
+	STA	BULLET_YH
+	RTS
+
+!NEGITIVE	CLC
+	ADC	RIPLEY_YL
+	STA	BULLET_YL
+	LDA	RIPLEY_YH
+	SBC	#0
+	STA	BULLET_YH
+	RTS
+
+	; Add to ripley and store to bullet position
+MOVE_ADDX	CMP	#0		; get flags for passed add value
+	BMI	!NEGITIVE
+	CLC
+	ADC	RIPLEY_XL		; ripley map
+	STA	BULLET_XL
+	LDA	RIPLEY_XH
+	ADC	#0
+	STA	BULLET_XH
+	RTS
+
+!NEGITIVE	CLC
+	ADC	RIPLEY_XL
+	STA	BULLET_XL
+	LDA	RIPLEY_XH
+	SBC	#0
+	STA	BULLET_XH
+	RTS
+
+	; get ripley cord+12 &FF0 -16 +12
+ALIGN_LADDER
+	LDA	RIPLEY_YL		; make sure on ladder evenly
+	AND	#254
+	STA	RIPLEY_YL
+ALIGN_XPOS	LDA	#12		; offset check add
+	CLC
+	ADC	RIPLEY_XL
+	STA	MIKE1
+	LDA	RIPLEY_XH
+	ADC	#0
+SET_ALIGN	STA	MIKE1+1
+	LDA	MIKE1
+	AND	#&F0		; and &f0
+	SEC
+	SBC	#4		; -16 + 12 = -4
+	STA	RIPLEY_XL
+	LDA	MIKE1+1
+	SBC	#0
+	STA	RIPLEY_XH
+	RTS
+
+****************************************
+*	WEAPONS CONTROL		*
+****************************************
+	; Weapon cycle is Rifle,Flame Thrower,Hand Grenades
+SELECT_WEAPON
+	LDA	FIRE		; if pressing fire ignore select action
+	BNE	NOCHANGE
+	LDA	SELECT		; is select wanted
+	BNE	NEWWEP		; yes do it
+	LDA	#1		; count for next selection
+	STA	SELECT_SPEED
+NOCHANGE	RTS			; no action
+
+NEWWEP	DEC	SELECT_SPEED
+	BNE	NOCHANGE
+	LDA	#10		; count for new select
+	STA	SELECT_SPEED
+	LDA	CURRENT_WEAPON
+	CLC
+	ADC	#1
+	AND	#3
+	STA	CURRENT_WEAPON	; new weapon and display value on ammo
+	RTS
+
+****************************************
+*	Check For fire of Weapon	*
+****************************************
+	; X frame add
+	; Y = 0 stand still
+	; Y = 1 running
+	; Y = 2 Ducking
+	; Y = 3 Crawling
+	; Y = 4 On Ladder
+FIRE_WEAPONS
+	STX	FRAME_ADD		; either a 0 or index count (run & fire)
+	LDA	CANFIRE		; can I fire a weapon
+	BNE	NOFIRE		; weapon control wont let me fire
+
+	DEC	FIRE_SPEED		; count down to fire weapon
+	BNE	NOFIRE
+	LDA	#1		; can fire after let go of fire button
+	STA	FIRE_SPEED
+
+	LDA	FIRE
+	BEQ	NOFIRE		; can to fire something
+	LDX	CURRENT_WEAPON	; get weapon (first displayed)
+	LDA	FIRE_TABL,X
+	STA	!JUMP+1
+	LDA	FIRE_TABH,X
+	STA	!JUMP+2
+!JUMP	JSR	&FFFF		; goto check
+	LDA	FRAME_ADD
+	ADC	#0		; c=0 no fire or c=1 for fire frame
+	STA	FRAME_ADD		
+	STX	WEAPON_FIRED
+	CPY	#3		; crawling
+	BEQ	CRAWL_FIRE
+	CPY	#4		; climbing
+	BEQ	LADDER_FIRE
+	CPX	#2
+	BCC	SET_FRAMES		; 0,1 
+	BNE	NO_DIR_SET
+	LDA	ALONG_FR,Y		; flame thrower
+	STA	FRAME
+	RTS
+
+BS	EQU	16 ;8;4		; pixel add to sprite
+PULSE_DIS	EQU	20 ;40		; distance travelled
+
+NOFIRE	LDX	#0
+	CPY	#3
+	BCC	SET_FRAMES
+	; ladder stuff
+	CPY	#3
+	BEQ	CRAWL_FIRE	
+	LDA	CURRENT_WEAPON	; get weapon (first displayed)
+	CMP	#3
+	BNE	PULSELF
+	LDY	#1
+	JMP	PULSE_LF
+
+CRAL_FRT	DB	DUCKF_SP,DUCKF_SP,DUCKF_SP,DUCKF_SP,CRAWL_SP+6
+
+LADDER_FIRE
+	CPX	#2		; pulse
+	BCC	PULSELF
+	CPX	#4		; grenade
+	BEQ	FIR_DN
+	LDA	BULLET_YADD		; otherwise pulse & pulse grenade
+	BPL	FIR_DN	
+	LDA	#HAND_SP		; otherwise down fire
+	NOW
+FIR_DN	LDA	#CLIMB_FIR+1
+	STA	FRAME
+	RTS
+
+CRAWL_FIRE	LDA	CRAL_FRT,X	; frame tables
+	CPX	#1
+	BNE	FILT
+	CLC
+	ADC	FRAME_ADD
+FILT	STA	FRAME
+	CPX	#1
+	BEQ	SET_BULGO		; pulse bullet set (along only)
+	RTS
+
+PULSELF	LDY	DOWN
+PULSE_LF	LDA	LAD_FIRT,Y
+	CMP	#2
+	BNE	FRSD
+	LDA	#CLIMB_FIR+1	; otherwise down fire
+	NOW
+FRSD	LDA	#HAND_SP
+	CLC
+	ADC	FRAME_ADD		; either 0 or 1
+	STA	FRAME
+	CPX	#0
+	BEQ	NOSET1
+	LDA	#0
+	STA	BULLET_XADD		; no addition in the x direction
+	LDA	LAD_FIRT,Y
+	STA	BULLET_DIR
+	LDA	LAD_FIRT+2,Y
+	STA	BULLET_YSUB
+	LDA	LAD_FIRT+4,Y
+	STA	BULLET_YADD
+NOSET1	RTS
+
+NO_DIR_SET	LDA	ALONG_FR,Y		; along frames
+	CLC
+	ADC	FRAME_ADD
+	STA	FRAME
+	RTS
+
+SET_FRAMES	CPY	#2		; duck frame
+	BEQ	TTHIS
+	LDA	UP
+	BEQ	NOTT
+	LDA	UP_FR,Y		; up frames
+	CLC
+	ADC	FRAME_ADD
+	STA	FRAME
+	CPX	#0
+	BEQ	NOSET2
+	LDA	DIR
+	ORA	#1
+	STA	BULLET_DIR
+	BMI	!SUB_BUL1
+	LDA	#BS
+	NOW
+!SUB_BUL1	LDA	#-BS		; left or right move
+	STA	BULLET_XADD	
+	LDA	XADD_UP,Y
+	STA	BULLET_YADD
+	LDA	XSUB_UP,Y
+	STA	BULLET_YSUB
+NOSET2	RTS
+
+TTHIS	LDA	ALONG_FR,Y		; along frames
+	CLC
+	ADC	FRAME_ADD
+	STA	FRAME
+	CPX	#0
+	BEQ	NOSET3
+SET_BULGO	LDA	DIR
+	STA	BULLET_DIR
+	BMI	SUB_BUL
+	LDA	#BS
+	NOW
+SUB_BUL	LDA	#-BS		; left or right move
+	STA	BULLET_XADD	
+	LDA	XADD_ALONG,Y
+	STA	BULLET_YADD
+	LDA	XSUB_ALONG,Y
+	STA	BULLET_YSUB
+NOSET3	RTS
+
+NOTT	LDA	DOWN
+	BEQ	TTHIS
+	LDA	DOWN_FR,Y		; down frames
+	CLC
+	ADC	FRAME_ADD
+	STA	FRAME
+	CPX	#0
+	BEQ	NOSET3
+	LDA	DIR
+	ORA	#2
+	STA	BULLET_DIR
+	BMI	!SUB_BUL
+	LDA	#BS
+	NOW
+!SUB_BUL	LDA	#-BS		; left or right move
+	STA	BULLET_XADD
+	LDA	XADD_DOWN,Y
+	STA	BULLET_YADD
+	LDA	XSUB_DOWN,Y
+	STA	BULLET_YSUB
+	RTS
+
+LAD_FIRT	DB	1,2,-2,2,-12,19
+
+	; Frame tables for pulse rifle
+	; 0 standing
+	; 1 running
+	; 2 duck
+
+UP_FR	DB	STAND_SP+2,RUNU_SP,DUCK_SP+2
+DOWN_FR	DB	STAND_SP+4,RUND_SP,DUCK_SP+4
+ALONG_FR	DB	STAND_SP,RUNF_SP,DUCK_SP,CRAWL_SP+6
+XADD_UP	DB	06,06,24
+XADD_DOWN	DB	10,10,26
+XADD_ALONG	DB	10,10,20,32
+XSUB_UP	DB	-6,-6
+XSUB_DOWN	DB	-6,-6
+XSUB_ALONG	DB	-1,-1,-2,-2
+
+FIRE_TABL	DL	F_PULSE,F_FLAME,F_PGRENADE,F_HGRENADE
+FIRE_TABH	DH	F_PULSE,F_FLAME,F_PGRENADE,F_HGRENADE
+
+****************************************
+*	Fire Pulse Rifle		*
+****************************************
+F_PULSE	LDA	ROUNDS		; start with no bullets left
+	BEQ	NO_BULLETS		; do empty sound effect
+	SEC
+	SBC	#1
+	STA	ROUNDS
+	LDA	#3
+	JSR	SETFX
+	LDA	#0		; distance bullet travelled
+	STA	BULLET_RANGE	; ie calls to sprite add
+	LDA	#7
+	STA	WEAPON_SPEED
+	LDA	#3 ;4		; delay for next bullet so can fire
+	STA	FIRE_SPEED
+	LDA	#255
+	STA	CANFIRE		; not more bullets fire
+	LDX	#1
+	SEC			; valid weapon fire
+	RTS
+
+NO_BULLETS	; empty gun sound effect
+	LDA	#11
+	JSR	SETFX
+	CLC
+	LDX	#0
+	RTS
+
+****************************************
+*	Fire Flame Thrower	*
+****************************************
+F_FLAME	LDA	FLAME_FUEL		; fuel left
+	BEQ	NO_BULLETS		; no fuel left
+	BIT	DIR
+	BPL	!RIGH
+	LDA	FIRX2_POS,Y
+	JMP	GOTMOV1
+!RIGH	LDA	FIRX1_POS,Y
+GOTMOV1	JSR	MOVE_ADDX
+	LDA	DOWN		; if down fire down
+	BNE	!TOPF
+	LDA	YDIR1_SET,Y
+	STA	BULLET_YADD
+	LDA	FIRY1_POS,Y
+	JMP	BORN2
+!TOPF	CPY	#4		; on ladder fire down
+	BNE	SMALB
+	LDA	#-4		; small adjustment
+	JSR	MOVE_BULLETX
+SMALB	LDA	YDIR2_SET,Y
+	STA	BULLET_YADD
+	LDA	FIRY2_POS,Y
+BORN2	JSR	MOVE_ADDY		; set bullet y
+	LDA	#FLAME_ACT		; set ripley to do nothing
+	STA	ACTION
+	LDA	#255
+	STA	CANFIRE		; not more fire
+	LDX	#0
+	STX	WEAPON_INDEX
+	INX
+	STX	WEAPON_SPEED	; 1
+	INX			; weapon number 2
+	CLC
+	RTS
+
+YDIR1_SET	DB	0,0,0,0,-1
+YDIR2_SET	DB	0,0,0,0,1
+FIRY1_POS	DB	-5,-5,5,20,-21
+FIRY2_POS	DB	-5,-5,5,20,30
+FIRX1_POS	DB	26,26,28,50,0
+FIRX2_POS	DB	-26,-26,-28,-50,0
+
+****************************************
+*	Fire Pulse Rifle Grenade	*
+****************************************
+F_PGRENADE	LDA	GRENADES		; any grenades left
+	BEQ	FAGGOT		; not any at all
+	SEC
+	SBC	#1
+	STA	GRENADES
+	LDA	DOWN		; if down fire down
+	BEQ	!TOPF
+	LDA	Y_ADDO,Y
+	JMP	BORN
+!TOPF	LDA	Y_ADUP,Y		; other wise will be up
+BORN	JSR	MOVE_ADDY		; set bullet y
+	LDA	DIR
+	STA	BULLET_DIR
+	BPL	RIGH
+	LDA	GB_LEFT,Y
+	JMP	GOTMOV
+RIGH	LDA	GB_RIGHT,Y
+GOTMOV	JSR	MOVE_ADDX	
+	LDX	#7		; grenade frame along
+	CPY	#4		; fire on ladder
+	BNE	NORE
+	LDX	#5		; grenade frame vertically
+	LDA	DOWN
+	BEQ	USE_UP
+	LDA	#4
+	NOW
+USE_UP	LDA	#-4
+	NOW
+NORE	LDA	#0
+	STA	BULLET_YADD
+	STX	BU_FRAME
+	LDA	#6		; delay for next bullet
+	STA	FIRE_SPEED
+	LDA	#255
+	STA	CANFIRE		; not more bullets fire
+	LDA	#1
+	STA	WEAPON_SPEED
+	LDA	#5 ;11		; sound
+	JSR	SETFX
+	LDX	#3
+	CLC
+	RTS
+
+FAGGOT	LDA	#11
+	JSR	SETFX
+	CLC			; not valid weapon
+	LDX	#0
+	RTS
+
+Y_ADDO	DB	12,12,20,34,32
+Y_ADUP	DB	12,12,20,34,-4
+GB_RIGHT	DB	24,24,24+6,24+24+2,14
+GB_LEFT	DB	-12,-12,-12,-32,14
+
+****************************************
+*	Throw hand Grenade	*
+****************************************
+F_HGRENADE	LDA	HAND_GRENADES
+	BEQ	FAGGOT		; none left 
+	SEC
+	SBC	#1		; minus 1
+	STA	HAND_GRENADES
+	LDA	#0		; set ripley to throw
+	STA	INDEX
+	STA	WEAPON_INDEX	; animation and move start
+	LDA	#255
+	STA	CANFIRE		; not more fire
+	LDA	#1		; set weapon fire in ripley control
+	STA	WEAPON_SPEED
+	LDA	DIR		; ripleys direction
+	STA	BULLET_DIR		; save to grenade
+	CPY	#4
+	BEQ	THROW_DON		; down ladder
+	CPY	#3		; in duct section
+	BEQ	THROW_NOW
+	LDA	#0
+	STA	BULLET_YADD
+	LDA	#THROW_ACT		; set ripley to do nothing
+	STA	ACTION
+	LDX	#0
+	CLC
+	RTS
+
+THROW_NOW	LDA	#30		; down from position
+	JSR	MOVE_ADDY		; set bullet y
+	BIT	DIR		; faceing (yet again!)
+	BPL	ADD_LOTS2
+	LDA	#-24
+	NOW
+ADD_LOTS2	LDA	#44		; past sprite and on a little
+	JSR	MOVE_ADDX	
+	LDA	#0
+SET_OK	STA	BULLET_YADD		; none ladder section
+	LDA	#5		; first frame
+	STA	BU_FRAME
+	LDA	#4
+	STA	WEAPON_FIRED	; grenade update now
+	LDX	#4
+	CLC
+	RTS
+
+THROW_DON	LDA	#30		; down from position
+	JSR	MOVE_ADDY		; set bullet y
+	LDA	#14		; past sprite and on a little
+	JSR	MOVE_ADDX	
+	LDA	#0		; distance travelled
+	STA	BULLET_RANGE	; ie calls to sprite add
+	LDA	#128
+	JMP	SET_OK		; set to move down firstly
+
+****************************************
+*	Re-Update of weapons	*
+****************************************
+UPDATE_WEAPONS
+	JSR	D_TRACKER		; update motion tracker
+	LDY	WEAPON_FIRED	; get weapon just fired
+	BEQ	RETURNB		; no weapon fired
+	LDA	DO_TABL-1,Y
+	STA	!JUMP+1
+	LDA	DO_TABH-1,Y
+	STA	!JUMP+2
+!JUMP	JMP	&FFFF		; goto check
+
+DO_TABL	DL	D_PULSE,D_FLAME,D_PGRENADES,D_HGRENADES,D_EXPLODE
+DO_TABH	DH	D_PULSE,D_FLAME,D_PGRENADES,D_HGRENADES,D_EXPLODE
+
+	; Set bullets cords from ripleys own cords
+SET_CORD	LDA	ACTION
+	CMP	#CLIMB_ACT		; when on ladder use certain position
+	BNE	OTHER_WA
+	LDA	#8
+	JSR	MOVE_ADDX
+	JMP	SET_YCORD
+
+OTHER_WA	BIT	BULLET_DIR
+	BPL	THIS_AM
+	LDA	BULLET_XL
+	AND	#&F0
+	CLC
+	ADC	#12
+	JMP	ADDED_ON2
+THIS_AM	LDA	#20
+	JSR	MOVE_ADDX
+	LDA	BULLET_XL
+	AND	#&F0
+	CLC
+	ADC	#8
+ADDED_ON2	STA	BULLET_XL
+	LDA	BULLET_XH
+	ADC	#0
+	STA	BULLET_XH
+
+SET_YCORD	LDA	BULLET_YADD		; small add to start with
+	BMI	NEGA
+	CLC
+	ADC	RIPLEY_YL
+	STA	BULLET_YL
+	LDA	RIPLEY_YH
+	ADC	#0
+	STA	BULLET_YH
+RETURNB	RTS
+
+NEGA	CLC
+	ADC	RIPLEY_YL
+	STA	BULLET_YL
+	LDA	RIPLEY_YH
+	SBC	#0
+	STA	BULLET_YH
+	RTS
+
+SWEENY	JMP	END_WEAP
+
+D_PULSE	DEC	WEAPON_SPEED	; count down fire action
+	LDA	WEAPON_SPEED
+	BEQ	SWEENY		; left over is display delay if bit left
+	CMP	#4		; mid way in
+	BEQ	SET_CORD		; set bullet cords to allign them
+	CMP	#3		; control move
+	BNE	RETURNB		; start delay left or end delay to go
+WORK
+	LDA	BULLET_DIR		; get other directions
+	LSR	A
+	BCS	UP1
+	LSR	A
+	BCS	DOWN1
+
+LOOPER	JSR	SIDE_BULLET		; anything hit sides	
+	BEQ	SIDE_HIT1
+	CMP	#DOOR_OBJ
+	BEQ	SIDE_HIT1
+	CMP	#SLOPEL_OBJ
+	BEQ	SIDE_HIT1
+	CMP	#SLOPER_OBJ
+	BEQ	SIDE_HIT1	
+	JSR	BULLET_HIT		; wacked anything
+	BCS	SIDE_HIT1		; splat it
+	INC	BULLET_RANGE	; moves made
+	LDA	BULLET_XADD
+	JSR	MOVE_BULLETX	; advance position on
+	LDA	BULLET_RANGE
+	CMP	#PULSE_DIS		; distance
+	BEQ	SAME_DELAY		; no more checking	
+	;JSR	FIFTY
+	JMP	LOOPER
+
+UP1	JSR	BULLET_TOP		; collide with roof
+	BEQ	TOP_HIT
+	CMP	#TOP_LADDER
+	BEQ	TOP_HIT
+	JSR	SIDE_BULLET		; collide with side
+SIDE_HIT1	BEQ	SIDE_HIT
+	CMP	#DOOR_OBJ
+	BEQ	SIDE_HIT
+	CMP	#SLOPEL_OBJ
+	BEQ	SIDE_HIT
+	CMP	#SLOPER_OBJ
+	BEQ	SIDE_HIT	
+	JSR	BULLET_HIT		; wacked anything
+	BCS	SIDE_HIT		; splat it
+	INC	BULLET_RANGE	; moves made
+	LDA	BULLET_XADD
+	JSR	MOVE_BULLETX
+	LDA	BULLET_YSUB		;-1 or -2 move up
+	JSR	MOVE_BULLETY
+	LDA	BULLET_RANGE
+	CMP	#PULSE_DIS		; distance
+	BEQ	SAME_DELAY		; no more checking	
+	;JSR	FIFTY
+	JMP	UP1
+
+DOWN1	JSR	BULLET_BOT		; collide with floor
+	BEQ	BOT_HIT
+	CMP	#LBOT2_OBJ
+	BEQ	BOT_HIT
+	JSR	SIDE_BULLET		; collide with side
+	BEQ	SIDE_HIT
+	CMP	#DOOR_OBJ
+	BEQ	SIDE_HIT
+	CMP	#SLOPEL_OBJ
+	BEQ	SIDE_HIT
+	CMP	#SLOPER_OBJ
+	BEQ	SIDE_HIT	
+	JSR	BULLET_HIT		; wacked anything
+	BCS	SIDE_HIT		; splat it
+	INC	BULLET_RANGE	; moves made
+	LDA	BULLET_XADD
+	JSR	MOVE_BULLETX
+	LDA	#6
+	JSR	MOVE_BULLETY
+	LDA	BULLET_RANGE
+	CMP	#PULSE_DIS		; distance
+	BEQ	SAME_DELAY		; no more checking	
+	;JSR	FIFTY
+	JMP	DOWN1
+
+SAME_DELAY	LDA	#0		; wipe bullet sprite
+	STA	BU_FRAME		; and return (make fire speed same)
+GOSUB	RTS
+
+	; Bullet hit edge of something
+SIDE_HIT	BIT	BULLET_DIR
+	BPL	RIGHT_HIT
+	LDA	#1
+	NOW
+RIGHT_HIT	LDA	#2
+	NOW
+TOP_HIT	LDA	#3
+	NOW
+BOT_HIT	LDA	#4
+	STA	MIKE2
+	LDX	#255
+	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCS	SAME_DELAY		; off the visable screen
+	LDY	MIKE2
+	STY	BU_FRAME
+	LDA	BULLET_RANGE
+	CMP	#3		; BS*this pixels travelled
+	BCC	GOSUB
+	CPY	#3
+	BCS	YFIZZ
+	LDA	SEED
+	EOR	TIMER_LOW
+	AND	#3
+	JMP	MOVE_BULLETY
+YFIZZ	LDA	SEED
+	EOR	TIMER_LOW
+	AND	#3
+	JMP	MOVE_BULLETX
+
+****************************************
+*	Flame Thrower Control	*
+****************************************
+D_FLAME	BIT	LIFT_SET		; of riding on platform update y position
+	BVC	NOTR
+	LDA	#-5
+	JSR	MOVE_ADDY		; set bullet y all the time
+NOTR	DEC	WEAPON_SPEED	; frame delay speed
+	BNE	ONSCRN	
+	LDA	#14
+	JSR	SETFX
+	LDA	#4		; delay for next frame update
+	STA	WEAPON_SPEED
+	LDY	WEAPON_INDEX	; count up
+	INY
+	CPY	#4
+	BNE	NOCHAN
+	LDA	FLAME_FUEL
+	SEC
+	SBC	#1
+	STA	FLAME_FUEL
+	BEQ	END_WEAP		; no fuel clip in hand
+	LDA	FIRE		; still want flame
+	BEQ	END_WEAP
+	LDY	#0
+NOCHAN	STY	WEAPON_INDEX
+	LDA	BULLET_YADD
+	BEQ	LF_RI		; left and right
+	TYA
+	CLC
+	BIT	BULLET_YADD
+	BPL	UPF
+	ADC	#48
+	NOW
+UPF	ADC	#52
+	JMP	RIGGIN
+
+LF_RI	TYA
+	CLC
+	BIT	DIR		; can use ripleys (as never moves)
+	BPL	KILY
+	ADC	#44		; other way flames (c=0 3/4 times
+	NOW
+KILY	ADC	#40
+RIGGIN	STA	BU_FRAME
+NO_NOSSLE	JMP	BULLET_HIT		; wacked anything
+
+END_WEAP	LDA	#0
+	STA	BU_FRAME		; blank flame sprite
+	STA	CANFIRE		; now able to fire again
+	STA	WEAPON_FIRED	; no weapon to update
+ONSCRN	RTS
+
+****************************************
+*	Pulse Rifle Grenades	*
+****************************************
+D_PGRENADES
+	JSR	BULLET_HIT		; wacked anything
+	BCS	BLOW_UP		; explode on hit of anything
+	LDA	BULLET_YADD
+	BEQ	ALO
+	JSR	BULLET_TOP		; anything hit top
+	BEQ	BLOW_UP		; now explode (code is as grenade blow up)
+	CMP	#TOP_LADDER
+	BEQ	BLOW_UP
+	CMP	#LBOT2_OBJ
+	BEQ	BLOW_UP
+	LDA	BULLET_YADD		; how far to move
+	JSR	MOVE_BULLETY		; advance position on
+	LDX	#255
+	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCC	ONSCRN		; off the visable screen
+UNTIL_HIT1	JSR	BULLET_BOT		; now thrash throw movement until hit
+	BEQ	BLOW_UP		; now explode (code is as grenade blow up)
+	CMP	#TOP_LADDER
+	BEQ	END_WEAP
+	CMP	#LBOT2_OBJ
+	BEQ	END_WEAP
+	LDA	BULLET_YADD
+	JSR	MOVE_BULLETY	; move still
+	JMP	UNTIL_HIT1
+
+ALO	JSR	SIDE_BULLET		; anything hit sides	
+	BEQ	BLOW_UP		; now explode (code is as grenade blow up)
+	CMP	#SLOPEL_OBJ
+	BEQ	BLOW_UP
+	CMP	#SLOPER_OBJ
+	BEQ	BLOW_UP	
+	CMP	#DOOR_OBJ
+	BEQ	BLOW_DOOR1		; kill door off aswell
+	LDA	#4		; how far to move
+	JSR	ADD_BULLETX		; advance position on
+	LDX	#255
+	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCC	ONSCRN		; off the visable screen
+	; now thrash throw movement until hit something
+UNTIL_HIT	JSR	SIDE_BULLET		; anything hit sides	
+	BEQ	END_WEAP		; now explode (code is as grenade blow up)
+	CMP	#DOOR_OBJ
+	BEQ	END_WEAP
+	CMP	#SLOPEL_OBJ
+	BEQ	END_WEAP
+	CMP	#SLOPER_OBJ
+	BEQ	END_WEAP	
+	LDA	#4
+	JSR	ADD_BULLETX		; move still
+	JMP	UNTIL_HIT	
+
+BLOW_DOOR1	JMP	BLOW_DOOR
+
+	; Set to explosion
+BLOW_ME	LDA	#8		; explode grenade
+	NOW
+BLOW_UP	LDA	#7
+	JSR	SETFX
+	LDA	#54
+	STA	BU_FRAME
+	LDA	#-8
+	JSR	MOVE_BULLETX	; advance position on ignore direction
+	LDA	#-8
+	JSR	MOVE_BULLETY
+	LDA	#0
+	STA	WEAPON_INDEX
+	LDA	#5
+	STA	WEAPON_FIRED
+	RTS
+
+****************************************
+*	Hand Grenades		*
+****************************************
+D_HGRENADES
+	DEC	WEAPON_SPEED	; frame delay speed
+	BNE	CARMEN	
+	LDA	#2		; every call 
+	STA	WEAPON_SPEED
+	BIT	BULLET_YADD
+	BMI	DOWN_ONL
+	JSR	SIDE_BULLET		; hit side of wall
+	BEQ	SREVERSE		; reverse
+	CMP	#0
+	BEQ	NREVERSE
+	CMP	#SLOPEL_OBJ
+	BEQ	SREVERSE
+	CMP	#SLOPER_OBJ
+	BEQ	SREVERSE
+	CMP	#DOOR_OBJ		; hit door
+	BNE	NREVERSE		; no them carry on
+
+SREVERSE	LDA	BULLET_DIR
+	EOR	#128		; reverse direction for bullet
+	STA	BULLET_DIR	
+	LDA	#17		; grenade bounce
+	JSR	SETFX
+NREVERSE	LDX	WEAPON_INDEX
+	CPX	#25		; past movements
+BLOW_UP1	BCS	BLOW_ME ;UP		; start toggle movements
+	BIT	IN_TUNNELS
+	BPL	FITSTT
+	LDA	GREN1_TABY,X
+	JMP	GOVER
+FITSTT	LDA	GREN_TABY,X
+GOVER	JSR	MOVE_BULLETY	; move down wards
+	LDA	#4
+	JSR	ADD_BULLETX
+	BIT	BULLET_DIR
+	BPL	VOCK
+	LDA	GREN_FR_LE,X	; grenade frame left moveing
+	JMP	FRA
+VOCK	LDA	GREN_FR_RI,X	; grenade frame right moveing
+FRA	STA	BU_FRAME
+	INX
+	STX	WEAPON_INDEX
+CARMEN	RTS
+
+	; grenade fall down ladder (for a set amount
+DOWN_ONL	BVS	DO_BOU		; little bounce
+	JSR	BULLET_BOT		; hit bottom of something
+	BEQ	SET_BOUNC
+	CMP	#LBOT2_OBJ
+	BEQ	SET_BOUNC
+	LDA	#4
+	JSR	MOVE_BULLETY
+	INC	BULLET_RANGE
+	LDA	BULLET_RANGE	; fall only so far
+	CMP	#20
+	BCS	BLOW_UP1
+	AND	#3
+	ADC	#5
+	STA	BU_FRAME
+	RTS
+
+SET_BOUNC	LDA	#128+64		; say want to bounce now
+	STA	BULLET_YADD
+	LDA	#17		; bounce
+	JMP	SETFX
+	
+DO_BOU	LDX	WEAPON_INDEX
+	CPX	#10
+	BCS	BLOW_UP1
+	TXA
+	AND	#3
+	ADC	#5
+	STA	BU_FRAME
+	LDA	SMALL_BOUNCE,X
+	JSR	MOVE_BULLETY
+	INX
+	STX	WEAPON_INDEX
+MEGA	RTS
+
+****************************************
+*	Explosion for grenade types	*
+****************************************
+D_EXPLODE	DEC	WEAPON_SPEED	; frame delay speed
+	BNE	MEGA		; label should reach
+	LDA	#6		; time at mo.
+	STA	WEAPON_SPEED
+	LDA	WEAPON_INDEX
+	CMP	#4
+	BCS	EXIUT
+	INC	WEAPON_INDEX
+	ADC	#56		; start of explosion
+	STA	BU_FRAME
+	JSR	BULLET_HIT		; wacked anything
+	BCC	MEGA		; ok
+EXIUT	JMP	END_WEAP
+
+****************************************
+*	Motion Tracker		*
+****************************************
+D_TRACKER	DEC	TRACKER_SPEED	; count down when first selected
+	BNE	MEGA
+	LDA	#15		; not to fast
+	STA	TRACKER_SPEED	; now do every time
+	LDA	TRACKER_TIME
+	BEQ	UP_DATE		; zero leave blank
+	CMP	#10		; time left for flashing
+	BCS	NO_FLASH		; update allways
+	LDA	TRACKER_ON_OFF
+	EOR	#1
+	STA	TRACKER_ON_OFF
+	BEQ	TURNON1
+	JSR	MOTION_TOF
+	JMP	NO_FLASH
+TURNON1	JSR	MOTION_TON
+
+NO_FLASH	LDA	TRACKER_TIME	; otherwise 
+	BEQ	UP_DATE		; no count down
+	SEC
+	SBC	#1
+	STA	TRACKER_TIME
+	BNE	UP_DATE
+	JSR	MOTION_TOF		; turn tracker off
+
+UP_DATE	LDX	#MAX_SPRITES-2	; amount of enemy
+TRACK_ALL	STX	MIKE2
+	LDY	TRACKER_Y,X		; get old position
+	BMI	DO_PLOT
+	LDA	TRACKER_X,X
+	TAX
+	JSR	PLOT_TRACKER	; take pixel off
+	LDX	MIKE2		; get back count
+DO_PLOT	LDA	ENEMY_TYPE,X	; now is the enemy being used
+	BEQ	OUT_RANGE		; if not then do absolutly nothing
+	JSR	ENEMY_XPOS		; get tile position in x
+	BCS	OUT_RANGE
+	JSR	ENEMY_YPOS
+	BCC	POS_OK
+OUT_RANGE	LDA	#255
+	STA	YTEMP
+POS_OK	LDY	YTEMP		; new y
+	STY	TRACKER_Y,X		; save to old pos
+	BMI	NO_PLOT		; invalid position
+	LDA	XTEMP		; new x
+	STA	TRACKER_X,X		; save to old
+	TAX			; x as cord in plot_tracker
+	JSR	PLOT_TRACKER	; now plot a pixel there
+NO_PLOT	LDX	MIKE2
+NOTHING	DEX
+	BPL	TRACK_ALL
+DELAYED	RTS
+
+ENEMY_XPOS	JSR	DISTANCEX		; distance between ripley and alien
+	STA	TEMP		; save sign
+	LDA	MIKE1		; get low to A
+	LSR	MIKE1+1
+	ROR	A		; /2
+	LSR	MIKE1+1
+	ROR	A		; /4
+	LSR	MIKE1+1
+	ROR	A		; /8
+	LSR	MIKE1+1
+	ROR	A		; /16
+	;LSR	MIKE1+1
+	;ROR	A		; /32
+	;LSR	MIKE1+1
+	;ROR	A
+	BIT	TEMP
+	BPL	BEFORE		; to left sid of ripley	
+	CMP	#11		; distance is
+	BCS	NOVALUE		; out of range C=1
+	ADC	#9		; start point oat 9th pixel
+	STA	XTEMP		; plot place x cord
+NOVALUE	RTS			; C=0
+
+BEFORE	CMP	#10		; distance
+	BCS	NOVALUE
+	STA	XTEMP
+	LDA	#8 ;9	+1 c=0	; start point at 9th pixel
+	;SEC
+	SBC	XTEMP		; 
+	STA	XTEMP		; got plot x position
+	CLC			; C=0 valid position
+	RTS
+
+ENEMY_YPOS	JSR	DISTANCEY		; distance between ripley and alien
+	STA	TEMP		; save sign
+	LDA	MIKE1		; get low to A
+	LSR	MIKE1+1
+	ROR	A		; /2
+	LSR	MIKE1+1
+	ROR	A		; /4
+	LSR	MIKE1+1
+	ROR	A		; /8
+	BIT	TEMP
+	BPL	BEFORE1		; above ripley
+	CMP	#17
+	BCS	NOVALUE1		; out of range C=1
+	ADC	#15		; start point at 9th pixel
+	NOW
+NOVALUE1	LDA	#255
+	STA	YTEMP
+	RTS			; C=0
+
+BEFORE1	CMP	#16		; distance
+	BCS	NOVALUE1
+	STA	YTEMP
+	LDA	#14 ;15 c=0		; start point at 15th pixel
+	;SEC
+	SBC	YTEMP		; work back to plot place
+	STA	YTEMP		; got plot x position
+	CLC			; C=0 valid position
+	RTS
+
+	; Plot pixel into motion tracker
+	; use formula of
+	; (x / 4 * 8) + (y / 8)*40 + (y  and 7)
+	; bit in pixel of x and 3
+
+TRCHR_MEM	EQU	(&58*8)+TCHARSET	; top left character memory
+PLOT_TRACKER
+	STY	TEMP
+	TYA
+	LSR	A		; y div 8
+	LSR	A
+ 	LSR	A
+	TAY			; get from lookup table
+	TXA
+	AND	#%11111100		; x div 4 *8
+	ASL	A		; c=0 allways
+	ADC	TRACK_LOW,Y		; get memory low
+	STA	MIKE1		; temp
+	LDA	TRACK_HIGH,Y	; get memory high
+	ADC	#0
+	STA	MIKE1+1		; temp
+	LDA	TEMP		; y save position
+	AND	#7
+	TAY
+	TXA
+	AND	#3		; get bit mask
+	TAX
+	LDA	(MIKE1),Y
+	EOR	BITS,X
+	STA	(MIKE1),Y
+	RTS
+
+TRACK_LOW	DL	TRCHR_MEM+0,TRCHR_MEM+40,TRCHR_MEM+80,TRCHR_MEM+120
+TRACK_HIGH	DH	TRCHR_MEM+0,TRCHR_MEM+40,TRCHR_MEM+80,TRCHR_MEM+120
+BITS	DB	%11000000,%00110000,%00001100,%00000011
+
+SMALL_BOUNCE
+	DB	-3,-3,-2,-1,0,0,1,1,3,4
+	; put granade table here saves branch errors
+GREN_FR_RI	DB	5,5,5,5,6,6,6,6,7,7,7,7,8,8,8,8,5,5,5,5,7,7,7,7,7
+GREN_FR_LE	DB	5,5,5,5,8,8,8,8,7,7,7,7,6,6,6,6,5,5,5,5,7,7,7,7,7
+GREN_TABY	DB	-4,-3,-2,-3,-2,-1,-2,-1,0,0,0,0,1,2,1,3,3,3,4,5
+	DB	5,5,5,5,5
+GREN1_TABY	DB	-2,-2,-1,-2,-1,-1,-1,-1,0,0,0,0,1,1,1,1,1,1,1,2
+	DB	1,1,1,2,2
+
+****************************************
+*	Prisoner Control		*
+****************************************
+
+	; scroll about to prisioners and kill them off
+KILL_PRISONERS
+	JSR	SWAP_CHARS		; put game chars back + all tables
+	JSR	SETIRQ		; game irq
+	JSR	UNHIDE_MAP		; unhide whole map in case out of time
+	JSR	HIDE_TUNNELS	; when crawling in tunnels
+	JSR	ALLSCREEN		; redraw whole screen
+	LDA	RIPLEY_YL
+	AND	#&FE
+	STA	RIPLEY_YL
+	LDA	#0
+	STA	TINX
+	STA	TINY		; scroll bodge (only 8 pixels error!)
+	STA	LIFT_SET
+	STA	BU_FRAME		; kill bullet of screen
+	STA	FRAME		; blank ripley
+	JSR	KILL_ENEMY
+	STA	ACTION		; stand act for ripley
+	;LDA	#3
+	;STA	SIDCON
+	;JSR	SETUP		; play relevant tune
+	JSR	FIFTY		; wait a sec
+	JSR	PRIS_SET		; set one now (maybe on screen already)
+	JSR	SCREEN_ON 
+	LDX	#0		; amount there are in total
+	STX	INDEXER+1
+BLOW_ALL	LDA	PRIS_THERE,X	; this one there
+	BMI	SAVED_IT
+	; set enemy cords to old so scroll will go to it
+	LDA	TMAP_XL,X		; the map position
+	STA	OLD_XL		; as enemy now
+	LDA	TMAP_XH,X
+	STA	OLD_XH		; x map
+	LDA	TMAP_YL,X
+	STA	OLD_YL
+	LDA	TMAP_YH,X
+	STA	OLD_YH		; y map
+GET_TO_PRIS
+	JSR	JOYGET
+	LDA	FIRE
+	BNE	SKIP_SHOW
+	JSR	FIFTY		; one frame wait
+	JSR	PLAYER		; call music player
+	JSR	PRIS_SET		; setup prisoners	
+	JSR	GO_BACK_V
+	BCC	GET_TO_PRIS
+	; prisoner must be on screen, so kill it off
+KILL_PRIS	LDA	#2
+	STA	ENEMY_ACT+4
+	STA	ENEMY_SPEED+4
+	LDA	#0
+	STA	ENEMY_INDEX+4
+	;LDA	#37
+	;JSR	SETFX
+KILL_LOOP	JSR	FIFTY
+	JSR	PLAYER		; call music player
+	JSR	PRIS_SET
+	LDA	ENEMY_ACT+4		; wait frame count
+	CMP	#3
+	BNE	KILL_LOOP
+INDEXER	LDX	#255
+	LDA	#255		; kill this one off
+	STA	PRIS_THERE,X
+SAVED_IT	INX
+	STX	INDEXER+1
+	CPX	TO_RESCUE
+	BNE	BLOW_ALL
+SKIP_SHOW	LDY	#50
+	JSR	ASEC
+	JSR	SCREEN_OFF
+	JSR	SWAP_CHARS		; chars to charset for text printing
+	JSR	CLG		; wipe screen (in case of die)
+	JMP	SETTIRQ		; set back title page irq
+
+PRIS_SET	LDA	PRISONER_THERE	; currently in use
+	BMI	STILL_ON_SCREEN	; 255 prisoner on screen
+	; could be in use by enemy control (prisoner has preference)
+	; otherwise scan tables and see if I need to trigger one on
+	LDX	TO_RESCUE		; get amount to scan through
+	BEQ	GUARD_ROOM
+PR_LOOP	LDA	PRIS_THERE-1,X	; get still to be saved
+	BMI	PRUB		; been saved
+	; map cords set first so sprite is placed in right place
+	JSR	CHECK_PRESET	; within screen limits
+	BCS	PRUB		; try next one
+	LDA	TMAP_XL-1,X		; the map position
+	STA	PRISONER_XL		; as enemy now
+	LDA	TMAP_XH-1,X
+	STA	PRISONER_XH		; x map
+	LDA	TMAP_YL-1,X
+	STA	PRISONER_YL
+	LDA	TMAP_YH-1,X
+	STA	PRISONER_YH		; y map
+	LDA	#1
+	STA	PRISONER_FRAME
+	STA	ENEMY_SPEED+4
+	LDA	#255
+	STA	PRISONER_THERE
+	LDA	#0
+	STA	ENEMY_INDEX+4
+	STA	ENEMY_ACT+4		; struggle action
+	STX	PRISONER_NUMBER	; index to table of positions
+GUARD_ROOM	RTS
+PRUB	DEX			; next in list
+	BNE	PR_LOOP		; do all
+	RTS			; exit.
+
+WAIT_DEAD	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCS	FREE_PRIS		; off screen
+	RTS
+
+STILL_ON_SCREEN
+	LDX	#4		; set index for move & compares
+	LDA	ENEMY_ACT+4		; what doing
+	BNE	SAVED_ME		; saved the prisioner
+	JSR	SPRITE_ONSCREEN	; position on the screen
+	BCS	FREE_PRIS		; off screen
+	JSR	PRIS_CHECK		; touched ripley
+	BCS	YOU_SAVED_ME	; save prisoner
+	DEC	ENEMY_SPEED+4
+	BNE	ROLLER
+	LDA	#10
+	STA	ENEMY_SPEED+4
+	LDA	ENEMY_INDEX+4
+	CLC
+	ADC	#1
+	AND	#3
+	STA	ENEMY_INDEX+4
+	ADC	#1		; amimation from 1
+	STA	PRISONER_FRAME
+ROLLER	RTS
+
+FREE_PRIS	LDA	#0
+	STA	PRISONER_THERE
+	RTS			; leave sprite here
+
+	; clock up save prisoner
+YOU_SAVED_ME
+	LDA	#24
+	JSR	SETFX
+	LDA	#1
+	STA	ENEMY_ACT+4		; set to drop
+	STA	ENEMY_SPEED+4	; do it now
+	LDA	#0
+	STA	ENEMY_INDEX+4	; count animation
+	LDA	#10		; fall on feet frame
+	STA	PRISONER_FRAME
+	LDY	PRISONER_NUMBER
+	LDA	#255
+	STA	PRIS_THERE-1,Y	; remember index is back one
+	INC	RESCUED
+	LDA	TO_RESCUE
+	CMP	RESCUED		; say have rescued all
+	BNE	MOR_LEFT
+	LDY	ENTRANCEI
+	LDA	#7		; poke in so can enter entrance now
+	STA	TUNNEL_CONT,Y
+MOR_LEFT	RTS
+
+SAVED_ME	CMP	#2
+	BEQ	KILL_OFF
+	CMP	#3
+	BEQ	WAIT_DEAD		; been killed wait to take of screen
+	DEC	ENEMY_SPEED+4
+	BNE	MOR_LEFT
+	LDA	#1		; delay for move
+	STA	ENEMY_SPEED+4
+	LDA	ENEMY_INDEX+4
+	CMP	#6
+	BCS	FREE_PRIS
+	ADC	#1
+	STA	ENEMY_INDEX+4
+	CMP	#6		; at last point
+	BNE	!NODELAY
+	LDA	#20
+	STA	ENEMY_SPEED+4	; slight delay when at bottom
+!NODELAY	LDA	#2		; move down 2 pixels
+	JMP	ENEMY_MOVEY
+
+	; explode from stomace the ALIEN
+KILL_OFF	DEC	ENEMY_SPEED+4
+	BNE	MOR_LEFT
+	LDA	#10		; delay for move
+	STA	ENEMY_SPEED+4
+	LDY	ENEMY_INDEX+4
+	TYA
+	CLC
+	ADC	#5		; die from frame 5
+	STA	PRISONER_FRAME
+	INY
+	STY	ENEMY_INDEX+4
+	CPY	#5
+	BNE	BARKLEY
+	LDA	#3
+	STA	ENEMY_ACT+4
+BARKLEY	RTS
+
+	; Check preset sprite data if anywhere around screen map
+	; so able to trigger them on 
+	; place is off the map when position is 2nd pixel off
+CHECK_PRESET	LDA	TMAP_XL-1,X	; check x first
+	SEC
+	SBC	PIXEL_XL	; screen top left
+	STA	MIKE1	; temp answer lo
+	LDA	TMAP_XH-1,X	; pixel map x hi
+	SBC	PIXEL_XH	; top left pixel screen
+	STA	MIKE1+1	; high byte
+	BEQ	CHECK_PRY	; when 0 must be on screen
+	CMP	#<-25	; high byte if -24
+	BNE	OTTH
+	LDA	MIKE1
+	CMP	#>-25	; low byte of -24
+	BCS	CHECK_PRY	; on side ok
+SETC3_OFF	SEC		; off screen limits
+	RTS
+
+OTTH	CMP	#<SCREEN_XLENGTH+2	; high byte
+	BNE	SETC3_OFF	; off screen (0 checked already)
+	LDA	MIKE1	; get back low
+	CMP	#>SCREEN_XLENGTH+2	; low byte
+	BCC	CHECK_PRY	; on screen
+	RTS
+	; got here must check y cords for valid range
+CHECK_PRY	LDA	TMAP_YL-1,X	; weapon y lo
+	SEC
+	SBC	PIXEL_YL	; screen pixel cord
+	STA	MIKE1	; temp answer lo
+	LDA	TMAP_YH-1,X	; cord y hi
+	SBC	PIXEL_YH	; screen pixel cord
+	BEQ	ATH_T1A	; high bit zero
+	CMP	#<-21	; high byte if -21
+	BNE	SETC4_OFF
+	LDA	MIKE1
+	CMP	#>-21	; low byte of -21
+	BCS	ONSFLA	; 
+SETC4_OFF	SEC		; off screen limits
+	RTS
+
+ONSFLA	CLC		; on screen
+	RTS
+
+	; here when msb is 0
+ATH_T1A	LDA	MIKE1	; get back y low
+	CMP	#>SCREEN_YLENGTH+1	; low byte
+	RTS		; c=0 < c=1 >
+

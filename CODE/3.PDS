@@ -1,0 +1,1410 @@
+	INCLUDE	..\CODE\MAPCODE.PDS
+	INCLUDE	..\CODE\PLOTY.PDS
+	INCLUDE	..\CODE\PLOTX.PDS
+
+RESTART	JSR	SETNOIRQ		; all off
+	IF	DISK_LOADER
+	LDY	#17
+	JSR	MUSIC_LOAD		; load music bank0 in
+	ENDIF
+	JSR	SETTIRQ
+FIRST_GO	;JMP	NEW_GAME
+	LDA	#255
+	STA	SIDCON
+START_INIT	LDA	#0
+	STA	YTEMP		; byte for names or copyright message
+	JSR	SETUP		; music on
+	JSR	INSERTN
+STARTPAGE	JSR	CLG
+	JSR	PLOT_LOGO		; alien 3 logo
+	JSR	CREDITS		; game credits
+	JSR	SCREEN_ON		; now have a look
+	LDA	#20		; twenty seconds for high score
+	STA	XTEMP
+WHOLE_LOT	JSR	FBTS		; print text up fire button
+	LDX	#13
+WAITTO	JSR	FIFTY		; delay a bit
+	LDA	FIRE
+	BNE	CONTINUE
+	DEX
+	BNE	WAITTO
+	JSR	BLANK_FBTS		; blank press fire
+	LDX	#12
+FLASH	JSR	FIFTY
+	LDA	FIRE
+	BNE	CONTINUE		; carry on
+	DEX
+	BNE	FLASH
+	DEC	XTEMP		; amount until next display
+	BNE	WHOLE_LOT
+	JSR	SCREEN_OFF		; screen off
+	JSR	SMDEL		; another delay
+	JSR	CLG		; clear screen
+	JSR	DISPLAYHIGH		; show high score table
+	JSR	FBTS		; fire button to start
+	JSR	SCREEN_ON		; now lets see it
+	LDA	#20		; twenty seconds for high score
+	STA	XTEMP
+WHOLE_LOT2	JSR	FBTS		; print text up fire button
+	LDX	#13
+WAITTO2	JSR	FIFTY		; delay a bit
+	LDA	FIRE
+	BNE	CONTINUE
+	DEX
+	BNE	WAITTO2
+	JSR	BLANK_FBTS		; blank press fire
+	LDX	#12
+FLASH2	JSR	FIFTY
+	LDA	FIRE
+	BNE	CONTINUE
+	DEX
+	BNE	FLASH2
+	DEC	XTEMP
+	BNE	WHOLE_LOT2
+
+	JSR	SCREEN_OFF		; turn off
+	JSR	SMDEL		; another delay
+	JMP	STARTPAGE		; restart sequence
+
+CONTINUE	JSR	SCREEN_OFF		; nothing seen
+	JSR	SMDEL		; another delay
+	JSR	CLG		; clear screen
+	JSR	GAME_OPTIONS	; Selections of options
+	IF	TAPE_LOADER
+	LDY	#1		; set as continue to start with
+	ELSE
+	LDY	#0
+	ENDIF
+	STY	YTEMP
+	STY	XTEMP		; old y for check new position
+	JSR	SELECT_BAR		; first plot of select bar	
+	JSR	SCREEN_ON
+	LDA	#3 ;2		; max y down in list
+	STA	TEMP
+FERG	JSR	SELECT_MOVE
+	LDA	FIRE
+	BEQ	NOSLC
+	JSR	SBEEP		; beep (if able ie effects on)
+	LDA	YTEMP
+	BEQ	NEW_GAME		; start
+	CMP	#1
+	BEQ	CARRY_ON
+	CMP	#2
+	BEQ	MODE
+	LDA	ST_LIVES
+	CLC
+	ADC	#1
+	CMP	#10
+	BCC	OKAM
+	LDA	#1		; back to start amount
+OKAM	STA	ST_LIVES	
+	JMP	REPRINT
+MODE	LDA	GAME_MODE		; easy normal hard game
+	CLC
+	ADC	#1
+	CMP	#3
+	BCC	NOT_MA
+	LDA	#0
+NOT_MA	STA	GAME_MODE		; new game mode	
+REPRINT	JSR	GAME_OPTIONS	; reprint options
+	LDY	#10
+	NOW
+NOSLC	LDY	#5
+	JSR	ASEC		; fifty * x loop
+	JMP	FERG		; all again
+
+NEW_GAME	LDA	#ST_LEVEL
+	STA	LEVEL		; section
+CARRY_ON	JSR	DE_BOUNCE
+	JSR	INIT_NEW		; zap score lives (and init weapons)
+	JSR	SCREEN_OFF
+	JSR	SWAP_CHARS		; put chars back to store
+	JSR	PANNEL_COL		; plot pannel colour nybble only
+NEXT_LEVEL	JSR	SETNOIRQ		; no irq for disk loader
+	JSR	LEVEL_LOAD		; Load in all required parts
+	JSR	INIT_LEV		; screen colours & sprite plot positions
+RESTART_LE	JSR	SWAP_CHARS		; chars to charset for text printing
+	JSR	SETTIRQ		; set back title page irq
+RESTART_LEVEL
+	JSR	CLG		; clear game screen
+	JSR	LEV_MESS		; level start message etc
+	JSR	SCREEN_ON
+	JSR	DE_BOUNCE
+	JSR	SCREEN_OFF		; off screen
+	JSR	SWAP_CHARS		; swap back characters back
+	JSR	SETNOIRQ
+	IF	DISK_LOADER
+	LDY	LEVEL		; load music bank in
+	JSR	MUSIC_LOAD
+	ENDIF
+	JSR	UNHIDE_MAP		; make sure have got all back
+	JSR	INIT_GAME		; setup just about everything
+	JSR	HIDE_TUNNELS	; loose tunnels
+	JSR	CLOSE_DOORS		; shut doors in level
+	JSR	ALLSCREEN		; first plot of nothing (but colour)
+	JSR	PANNEL_COL		; colour memory for pannel (as cleared)
+	JSR	MOTION_TON		; turn tracker on firstly
+	JSR	PPANEL		; plot pannel score values
+	LDA	#0		; 2 channel music
+	STA	SIDCON		; keep A=0 for all levels other then guardian
+	LDY	LEV_BYTE
+	CPY	#3
+	BNE	NORL
+	LDA	#1		; level guardian
+NORL	JSR	SETUP		; level tune
+	JSR	SETIRQ		; game irq
+	JSR	SCREEN_ON
+	; Loop starts here
+ALIVE	JSR	JOYGET		; scan joystick and keyboard
+	LDA	PAUSE		; pause key pressed
+	BEQ	NPAUSED		; no
+	JSR	PAUSED		; do pause code
+NPAUSED	JSR	UPDATE_DOORS
+	JSR	MOVE_RIPLEY		; move about & animate & fire weapons
+	JSR	SCAN_NEW		; set up new aliens
+	JSR	ALIEN_UPDATE	; move aliens about
+	JSR	PRIS_SET		; map on prisoners (if able to)
+	JSR	SELECT_WEAPON	; new weapon wanted
+	JSR	UPDATE_WEAPONS	; move weapons sprites (when required)
+	JSR	TIMER		; countdown timer & rescue number left
+	JSR	PPANEL		; pannel values score etc
+
+	JSR	FIFTY
+	JSR	TUNNEL_CONTROL	; tunnel open or shut ?
+	JSR	PLAYER		; call music player
+	LDA	TIMER_LOW		; out of time
+	ORA	TIMER_HIGH
+	BEQ	OUT_TIME
+	JSR	RANDOM		; allways clock around
+	LDA	LEV_BYTE
+	CMP	#3
+	BNE	OTHER_ONES
+	LDA	DOOR_CONTROL	; when door opened finished level
+	BEQ	OTHER_ONES
+	BMI	OTHER_ONES
+	BIT	DOOR_CONTROL
+	BVC	DONEALL
+OTHER_ONES	LDA	REACHED_END
+	BNE	DONEALL
+	LDA	ENERGY		; power left in ripley
+	BEQ	LOOSE_LIFE		; no energy left
+	JMP	ALIVE		; ok
+	; no time left kill prisoners or display out of time
+OUT_TIME	JSR	PREPARE		; set screen and irq
+	JSR	NOTIME_TEXT		; out time/left prisoners out there
+	LDA	#2
+	JSR	SETUP		; you failed gingle
+	JSR	SCREEN_ON
+	JSR	MUSIC_END		; wait for jingle to end
+	JSR	SCREEN_OFF		; off screen
+	JSR	CLG		; re clear screen
+	LDA	TO_RESCUE
+	CMP	RESCUED		; none left to save
+	BEQ	LIFE_LOST		; and loose a life
+	JSR	KILL_PRISONERS	; scroll around and kill each one off
+	JMP	LIFE_LOST		; and loose a life
+	; complete level (either normal one or guardian)
+DONEALL	JSR	PREPARE		; set screen and irq
+	LDA	#0		; completed
+	STA	BONUS_LO+1
+	STA	BONUS_MI+1
+	STA	BONUS_HI+1		; actuall bonus
+	JSR	SETUP		; play complete tune
+	JSR	WELL_DONE
+	JSR	SCREEN_ON		; should to all set correctly
+	JSR	COUNT_BONUSES
+	JSR	BONUS_TOTAL
+	JSR	ADD_SCORE		; add bonus to score
+	JSR	DE_BOUNCE
+	JSR	SCREEN_OFF		; off screen
+	JSR	SWAP_CHARS		; swap back characters back to store
+	JSR	GUARD_SAVE		; swap enemy sprites back
+	INC	LEVEL		; to next level
+	LDA	LEVEL
+	CMP	#15
+	BEQ	DO_END
+	JMP	NEXT_LEVEL		; do level again ok
+DO_END	JSR	END_SEQUENCE
+	JSR	PREPARE
+	JMP	NO_LIVES		; end game
+
+	; loose life of no energy left
+LOOSE_LIFE	JSR	PREPARE		; set screen and irq
+LIFE_LOST	LDA	LIVES		; loose a life
+	SEC
+	SBC	#1
+	BEQ	NO_LIVES
+	STA	LIVES
+	JMP	RESTART_LEVEL	; another try of level
+NO_LIVES	LDA	#1
+	JSR	SETUP
+	JSR	PR_GAM_OV		; print game over text
+	JSR	SCREEN_ON
+	JSR	MUSIC_END		; wait for jingle to end
+	JSR	SCREEN_OFF		; off screen
+	JSR	GUARD_SAVE		; swap sprites back if need to
+	JSR	CHECKPLAYER		; in high score table
+	BCS	LUCKY_BOY
+	JMP	RESTART		; to title sequence
+
+LUCKY_BOY	STY	MIKE2		; save index to name
+	JSR	SETNOIRQ		; no irq for loading
+	IF	DISK_LOADER
+	LDY	#17		; load music bank0
+	JSR	MUSIC_LOAD		; when back to title dont reload ok
+	ENDIF
+	JSR	CLG
+	JSR	INSERTN		; poke names for high score
+	JSR	DISPLAYHIGH		; show high score table
+	JSR	NAMEINHI		; print text 'enter name'
+	JSR	SETTIRQ		; title page irq is same
+	LDA	#2		; high score music
+	JSR	SETUP
+	JSR	SCREEN_ON		; now lets see it
+	LDY	#HOWMANY-1		; places to check
+FINDSCRP	LDA	OFFSET,Y		; find where place for name
+	CMP	MIKE2		; will be printer on screen
+	BEQ	FOUND
+	DEY
+	BPL	FINDSCRP
+FOUND	CLC
+	ADC	#2		; colours start from 2
+	STA	SCRCB+1
+	TYA
+	STA	MIKE1
+	ASL	A
+	ADC	MIKE1		; * 3
+	TAY
+	LDA	SMAPL+6,Y		; low of screen memory
+	ADC	#27		; c=0 allways
+	STA	SCREEN		; screen memory
+	STA	COLOUR		; colour nybble
+	LDA	SMAPH+6,Y		; high byte table
+	ADC	#0
+	STA	SCREEN+1
+	SEC
+	SBC	#<(SCREEN1-NYBBLE)	; get nybble memory
+	STA	COLOUR+1
+	LDA	SCREEN
+	CLC
+	ADC	#40
+	STA	SCREENA
+	STA	COLOURA
+	LDA	SCREEN+1
+	ADC	#0
+	STA	SCREENA+1
+	SEC
+	SBC	#<(SCREEN1-NYBBLE)
+	STA	COLOURA+1
+	LDX	MIKE2		; name index
+	LDY	#0		; letter 0 to start with
+	LDA	#10		; count speed
+	STA	SPEED		; store to temp
+NAMELOOP	JSR	JOYGET		; scan joystick and keyboard
+	JSR	UPDATE		; plot all
+	DEC	SPEED
+	BNE	NAMELOOP
+	LDA	#10
+	STA	SPEED
+	CPY	#1
+	BEQ	SECL
+	CPY	#2		; max letters
+	BEQ	THIRDL
+	CPY	#3
+	BEQ	FOURLT
+	CPY	#4
+	BEQ	LASTL
+	LDA	NAMEL1,X
+	JSR	NEW_NAME
+	STA	NAMEL1,X
+	JMP	CARRYON
+
+SECL	LDA	NAMEL2,X
+	JSR	NEW_NAME
+	STA	NAMEL2,X
+	JMP	CARRYON
+
+THIRDL	LDA	NAMEL3,X
+	JSR	NEW_NAME
+	STA	NAMEL3,X
+	JMP	CARRYON
+
+FOURLT	LDA	NAMEL4,X
+	JSR	NEW_NAME
+	STA	NAMEL4,X
+	JMP	CARRYON
+
+LASTL	LDA	NAMEL5,X
+	JSR	NEW_NAME
+	STA	NAMEL5,X
+CARRYON	STA	(SCREEN),Y
+	CLC
+	ADC	#43
+	STA	(SCREENA),Y
+SCRCB	LDA	#255		; proper colour for text at line
+	STA	(COLOUR),Y
+	STA	(COLOURA),Y
+	LDA	LEFT
+	BEQ	RI
+	CPY	#0		; at where
+	BNE	DES
+	LDY	#5		; will set to 4
+DES	DEY
+	JSR	SBEEP
+RI	LDA	RIGHT
+	BEQ	NODDY
+	CPY	#4		; last letter
+	BCC	SE
+	LDY	#255		; follow through set to 0
+SE	INY
+	JSR	SBEEP
+NODDY	LDA	FIRE		; let go of fire buttom
+	BNE	THURSDAY	
+	JMP	NAMELOOP
+THURSDAY	JSR	JOYGET		; scan joystick and keyboard
+	LDA	FIRE
+	BNE	THURSDAY
+	JSR	SCREEN_OFF
+	JMP	START_INIT		; restart sequence & init title music
+
+NEW_NAME	CLC
+	ADC	UP
+	CMP	#"Z"+1	;1
+	BCC	NOW1
+	LDA	#"0"
+NOW1	SEC
+	SBC	DOWN
+	CMP	#"0"
+	BCS	NOW2
+	LDA	#"Z"	;
+NOW2	RTS
+
+UPDATE	LDA	(COLOUR),Y
+	CLC
+	ADC	#1
+	AND	#7
+	STA	(COLOUR),Y
+	STA	(COLOURA),Y
+	JMP	FIFTY
+
+PREPARE	JSR	SCREEN_OFF		; blank screen
+	JSR	SETNOIRQ		; no irq now
+	IF	DISK_LOADER
+	LDY	#16
+	JSR	MUSIC_LOAD		; get bank6 in
+	ENDIF
+	LDA	#255
+	STA	SIDCON
+	JSR	CLG		; wipe screen
+	JSR	LOOSE_PICKUPS	; only chance to loose pickups
+	JSR	SWAP_CHARS		; put chars to level charset
+	JMP	SETTIRQ		; charset irq for text printing
+
+END_SEQUENCE
+	JSR	SETNOIRQ		; no irq for disk loader
+	JSR	LEVEL_LOAD
+	IF	DISK_LOADER
+	LDY	LEVEL		; load music bank in
+	JSR	MUSIC_LOAD
+	ENDIF
+	JSR	SETIRQ		; game irq
+	LDA	#2		; stop index
+	STA	XOFFSET
+	LDA	#255
+	STA	SIDCON
+	LDA	#0		; start from then top
+	STA	YOFFSET
+	STA	LEVEL		; so if restart go to start of game
+	STA	NOFLA+1
+	STA	MIKE1		; big delay firstly
+	STA	LEV_BYTE		; stop crap being copyied over alien sprs
+	JSR	SETUP		; end music
+	JSR	PANNEL_COL		; colour memory for pannel (as cleared)
+	JSR	ALLSCREEN
+	JSR	SCREEN_ON
+ENDLOOP	JSR	FIFTY
+	JSR	PLAYER
+	DEC	MIKE1
+	BNE	ENDLOOP
+	LDA	#4		; scroll down byte
+	STA	SCROLLACTION	; scroll screen now
+	STA	MIKE1
+	LDA	YOFFSET
+	CMP	#125-8
+	BNE	ENDLOOP
+WAIT_ANY	JSR	FIFTY
+	JSR	PLAYER
+	JSR	JOYGET	
+	LDA	FIRE
+	BEQ	WAIT_ANY
+	RTS
+
+MUSIC_END	IF	DISK_LOADER
+	LDA	BYTE4000
+	BNE	MUSIC_END
+	RTS
+	ENDIF	
+DE_BOUNCE	JSR	JOYGET
+	LDA	FIRE
+	BEQ	DE_BOUNCE
+LET_GO_OF	JSR	JOYGET
+	BNE	LET_GO_OF
+	RTS
+
+PAUSED	JSR	DE_PAUSE		; wait until let go (shit bag)
+WHAT_NEXT	JSR	FIFTY		; frame
+	JSR	PLAYER		; keep music going
+	JSR	JOYGET		; re read keys
+	LDA	PAUSE
+	BNE	DE_PAUSE
+	LDA	KEYBYTE0+1
+	AND	#%01000000		; cheat test INST & RETURN
+	BNE	WHAT_NEXT
+	LDA	#1
+	STA	LIVES
+	LDA	#0
+	STA	ENERGY
+DE_PAUSE	JSR	FIFTY		; frame
+	JSR	PLAYER		; keep music going
+	JSR	JOYGET		; re read keys
+	LDA	PAUSE
+	BNE	DE_PAUSE
+	RTS
+	
+	; wait for vertical sync
+FIFTY	LDA	SYNC		; current meanless value
+WAIT	CMP	SYNC		; when changed
+	BEQ	WAIT		; must be a fly back
+	RTS
+
+SMDEL	LDY	#20
+ASEC	JSR	FIFTY
+	DEY
+	BNE	ASEC
+	RTS
+
+****************************************
+*	setup bits		*
+****************************************
+INIT_NEW	LDA	#20
+	STA	GRENADES		; rifle grenades
+	LDA	#250
+	STA	TRACKER_TIME	; motion tracker time
+	LDA	#10
+	STA	HAND_GRENADES
+	LDA	#80
+	STA	FLAME_FUEL
+	LDA	#99
+	STA	ROUNDS
+	LDA	#0
+	STA	SCORELO		; no score
+	STA	SCOREMI
+	STA	SCOREHI
+	LDA	ST_LIVES
+	STA	LIVES
+COWARD	RTS
+
+	; Initialise for new level when just loaded, set irq code bits up
+INIT_LEV	LDA	C1
+	STA	CO1		; screen colours
+	LDA	C2
+	STA	CO2
+	LDA	TOPY		; position for sprites add start
+	STA	START1+1
+	STA	START2+1
+	STA	START3+1
+	LDA	RESCUE		; have to have a zp copy as checks
+	STA	TO_RESCUE		; will reach charset data when failed
+	LDA	LEV_TYPE		; will be poke from after disk loader
+	STA	LEV_BYTE
+GUARD_SAVE	LDA	LEV_BYTE		; will be poke from after disk loader
+	CMP	#3		; is this a guardian level
+	BNE	COWARD
+	JMP	SWAP_GUARD		; swap back enemy sprites 
+
+	; Init for level start (could be another attempt at current one)
+INIT_GAME	LDA	#0
+	STA	TINX		; tile in X
+	STA	TINY		; tile in Y
+	STA	DIR		; faceing right to start with
+	STA	IN_TUNNELS		; normal mode
+	STA	LIFT_SET		; no lift been set yet
+	STA	PIXEL_XH
+	STA	PIXEL_YH		; for working out latter
+	STA	ACTION		; doing what
+	STA	SYNC		; can take out
+	STA	TRACKER_ON_OFF	; tracker on
+	STA	CLOCK		; for timer
+	STA	CANFIRE		; can fire a weapon
+	STA	CURRENT_WEAPON	; first as default
+	STA	WEAPON_FIRED	; no weapon update
+	STA	BULLET_XL
+	STA	BULLET_XH
+	STA	BULLET_YL
+	STA	BULLET_YH
+	STA	BU_FRAME
+	STA	REACHED_END		; reached end of level
+	STA	RESCUED		; save amount
+	JSR	KILL_ENEMY
+	STA	PRISONER_THERE	; same as below
+	STA	GUARDIAN		; end gardian alive (255 if killed)
+	STA	ENEMY_FRAME+0	; blank sprites
+	STA	ENEMY_FRAME+1
+	STA	ENEMY_FRAME+2
+	STA	ENEMY_FRAME+3
+	LDY	ENTRANCEI		; end tunnel to get to exit zap out
+	STA	TUNNEL_CONT,Y	; open for door control
+	; make all prisoners alive
+	LDX	TO_RESCUE
+	BEQ	NONE_USED		; no prisoners it guardian room
+PRIS_ALIVE	STA	PRIS_THERE-1,X
+	DEX
+	BNE	PRIS_ALIVE
+NONE_USED	STA	PLACEMENT+0		; sprites place in bank for swapping
+	STA	PLACEMENT+1		; after block copying
+	STA	PLACEMENT+2
+	STA	PLACEMENT+3
+	STA	SCANNER_INDEX	; set for enemy scanning
+
+	; make all enemy on level set to alive
+	LDY	#24		; max amount of presets for level
+ENEMY_SET	LDA	WHAT_ONE,Y		; what act type to use here
+	AND	#%01111111
+	STA	WHAT_ONE,Y
+	DEY
+	BPL	ENEMY_SET
+	LDA	#BL
+	STA	PRISONER_FRAME	; prisoner / enemy
+	STA	SPRITE3
+	STA	SPRITE4
+	STA	SPRITE5
+	STA	SPRITE6
+	LDY	GAME_MODE		; difficulty for time
+	LDA	TIME_HI,Y
+	STA	TIMER_HIGH
+	LDA	TIME_LO,Y
+	STA	TIMER_LOW
+	LDA	#1		; check straight away
+	STA	FRAME		; ripley stand
+	STA	SPEED
+	STA	FIRE_SPEED		; can fire right away (well if have weapon)
+	LDA	#ST_ENERGY+3	; fill up
+	STA	ENERGY
+	LDA	#6
+	STA	YSCROLL		; top of first character
+	STA	XSCROLL
+	LDA	XSTART		; init for level
+	STA	XOFFSET
+	ASL	A
+	ROL	PIXEL_XH		; * 2
+	ASL	A
+	ROL	PIXEL_XH		; * 4
+	ASL	A
+	ROL	PIXEL_XH		; * 8
+	ASL	A
+	ROL	PIXEL_XH		; * 16
+	STA	PIXEL_XL
+	LDA	PIXEL_XH
+	ADC	#0
+	STA	PIXEL_XH
+	LDA	PIXEL_XL		; top of screen
+	CLC
+	ADC	XSTART_POS		; from data block
+	STA	RIPLEY_XL
+	STA	OLD_XL
+	LDA	PIXEL_XH
+	ADC	#0
+	STA	RIPLEY_XH
+	STA	OLD_XH
+	LDA	YSTART
+	CMP	TILEY		; max amount in y
+	BCC	MAXIM
+	LDA	TILEY
+MAXIM	STA	YOFFSET
+	ASL	A
+	ROL	PIXEL_YH		; * 2
+	ASL	A
+	ROL	PIXEL_YH		; * 4
+	ASL	A
+	ROL	PIXEL_YH		; * 8
+	ASL	A
+	ROL	PIXEL_YH		; * 16
+	STA	PIXEL_YL
+	LDA	PIXEL_YH
+	ADC	#0
+	STA	PIXEL_YH
+	LDA	YSTART
+	CMP	TILEY		; max amount in y
+	BCC	VALAMO
+	SBC	TILEY
+	ASL	A
+	ASL	A
+	ASL	A
+	ASL	A
+	ADC	#22+16
+	NOW
+VALAMO	LDA	#22+16		; ofset in middle somewhere
+	CLC
+	ADC	PIXEL_YL		; top of screen
+	STA	RIPLEY_YL
+	STA	OLD_YL
+	LDA	PIXEL_YH
+	ADC	#0
+	STA	RIPLEY_YH
+	STA	OLD_YH
+	LDX	#0		; now set pickups for level
+DO_ALLTHEM	LDA	PICKUP_Y,X		; new position
+	CMP	#255		; last on in list
+	BEQ	ENDLIST
+	TAY
+	LDA	GMAP_L,Y
+	STA	MAP_MEM0		; low
+	LDA	GMAP_H,Y
+	STA	MAP_MEM0+1		; high
+	LDA	PICKUP_X,X		; x position in line
+	TAY
+	LDA	(MAP_MEM0),Y	; get map byte
+	STA	PICKUP_OLD,X	; save this byte
+	LDA	PICKUP_NEW,X	; place item there
+	CLC
+	ADC	#&78		; start of pickups tiles
+	STA	(MAP_MEM0),Y	; save to map
+	INX			; next on list
+	JMP	DO_ALLTHEM
+ENDLIST	LDX	#0
+BOOSTER	LDA	ROUNDS,X
+	CMP	ADDERS,X		; more than a pickup
+	BCS	STORTO2		; enough already
+	ADC	ADDERS,X
+	CMP	MAXERS,X		; to big a value
+	BCC	STORTO2
+	LDA	MAXERS,X
+STORTO2	STA	ROUNDS,X
+	INX
+	CPX	#5		; dont bother with energy
+	BNE	BOOSTER
+	LDA	LEV_BYTE		; will be poke from after disk loader
+	CMP	#3		; is this a guardian level
+	BNE	ENDPICK
+	JMP	SET_GUARD
+
+	; kill all enemy off
+KILL_ENEMY	LDA	#0		; kill all bits off
+	STA	ENEMY_TYPE+0
+	STA	ENEMY_TYPE+1
+	STA	ENEMY_TYPE+2
+	STA	ENEMY_TYPE+3
+ENDPICK	RTS
+
+LOOSE_PICKUPS
+	LDX	#0
+LOOSE_PICK	LDA	PICKUP_Y,X		; new position
+	CMP	#255		; last on in list
+	BEQ	ENDPICK
+	TAY
+	LDA	GMAP_L,Y
+	STA	MAP_MEM0		; low
+	LDA	GMAP_H,Y
+	STA	MAP_MEM0+1		; high
+	LDA	PICKUP_X,X		; x position in line
+	TAY
+	LDA	PICKUP_OLD,X	; place item there
+	STA	(MAP_MEM0),Y	; save to map
+	INX			; next on list
+	JMP	LOOSE_PICK
+
+	; character table for y one char at time (title screen)
+	TABLELO	SMAPL,0,24,40,SCREEN1
+	TABLEHI	SMAPH,0,24,40,SCREEN1
+
+PLOT_TEXT	PLA			; get return address
+	STA	MIKE1		; low byte
+	PLA
+	STA	MIKE1+1		; high byte
+	LDY	#1		; index to first byte
+	LDA	(MIKE1),Y		; colour for text
+	STA	COLBYTE+1
+	INY
+	LDA	(MIKE1),Y		; Y cord
+	TAX
+	LDA	SMAPL,X		; low of screen memory
+	STA	ONSCREEN+1
+	STA	COLSCREEN+1
+	LDA	SMAPL+1,X		; next line down
+	STA	ONSCREEN1+1
+	STA	COLSCREEN1+1
+	LDA	SMAPH,X		; high byte of screen memory
+	STA	ONSCREEN+2
+	SEC
+	SBC	#<(SCREEN1-NYBBLE)	; get nybble memory
+	STA	COLSCREEN+2	
+	LDA	SMAPH+1,X		; next line down
+	STA	ONSCREEN1+2
+	SEC
+	SBC	#<(SCREEN1-NYBBLE)	; get to memory
+	STA	COLSCREEN1+2	
+	INY
+	LDA	(MIKE1),Y
+	TAX
+POKETOSCREEN	INY
+	LDA	(MIKE1),Y		; get text to convert
+	CMP	#32
+	BNE	NO_SPACE
+	LDA	#0		; blank char
+	BEQ	ONSCREEN
+NO_SPACE	CMP	#255
+	BEQ	ENDT		; last char to poke
+ONSCREEN	STA	&FFFF,X		; screen memory
+	BEQ	ONSCREEN1
+	CLC
+	ADC	#43		; point to other half
+ONSCREEN1	STA	&FFFF,X
+COLBYTE	LDA	#255		; nybble byte
+COLSCREEN	STA	&FFFF,X		; nybble memory
+COLSCREEN1	STA	&FFFF,X		; second half
+	INX			; along screen
+	BNE	POKETOSCREEN	; keep going
+ENDT	TYA
+	SEC
+	ADC	MIKE1		; advance to end of
+	STA	MIKE1		; data to set return
+	BCC	FISH		; address of call
+	INC	MIKE1+1		; high byte over
+FISH	JMP	(MIKE1)		; return back
+
+****************************************
+*	title screen stuff	*
+****************************************
+
+CYS	EQU	9		; credits y start
+CREDITS1	IF	TAPE_LOADER
+	ELSE
+	JSR	PLOT_TEXT		; Colour, Ycord, Xcord
+	DB	2,CYS+4,4,"PROGRAMMING BY MICHAEL J ARCHER",&3A,255
+	JSR	PLOT_TEXT
+	DB	4,CYS+7,10,"GRAPHICS BY LEE AMES",255
+	JSR	PLOT_TEXT
+	DB	3,CYS+10,3,"MUSIC AND SOUND FX BY ANDY RODGER",255
+	JMP	FBTS
+	ENDIF
+CREDITS	IF	TAPE_LOADER
+	ELSE
+	LDA	YTEMP
+	EOR	#1
+	STA	YTEMP
+	BEQ	CREDITS1
+	ENDIF
+	JSR	PLOT_TEXT		; Colour, Ycord, Xcord
+	DB	3,CYS+3,2,"TM AND ",&3E,"1992 TWENTIETH CENTURY FOX",255
+	JSR	PLOT_TEXT
+	DB	6,CYS+5,1,"FILM CORPORATION",&3A," ALL RIGHTS RESERVED",&3A,255
+	JSR	PLOT_TEXT
+	DB	2,CYS+8,4,&3E,"1992 ACCLAIM ENTERTAINMENT INC",&3A,255
+	JSR	PLOT_TEXT
+	DB	4,CYS+11,4,"DEVELOPED BY PROBE SOFTWARE LTD",&3A,255
+
+FBTS	JSR	PLOT_TEXT		; fire print
+	DB	1,CYS+14,11,"PRESS FIRE TO START",255
+	;DB	1,CYS+14,03,"PLAYABLE DEMO PRESS FIRE TO START",255
+	; blank out above printed text
+	RTS
+BLANK_FBTS	JSR	PLOT_TEXT
+	DB	1,CYS+14,11,"                   ",255
+	;DB	1,CYS+14,03,"                                 ",255
+	RTS
+	
+NAMEINHI	JSR	PLOT_TEXT		; fire print
+	DB	1,CYS+14,11,"PLEASE ENTER NAME",255
+	RTS
+
+PR_GAM_OV	JSR	PLOT_TEXT		; fire print
+	DB	1,12,16,"GAME OVER",255
+	RTS
+
+NOTIME_TEXT
+	LDA	RESCUED
+	CMP	TO_RESCUE
+	BNE	FAIL2_TEXT
+	JSR	PLOT_TEXT
+	DB	1,12,15,"OUT OF TIME",255
+	RTS
+
+FAIL2_TEXT	JSR	PLOT_TEXT
+	DB	1,6,16,"TIME UP",&3A,255
+	JSR	PLOT_TEXT
+	DB	1,10,10,"YOU FAILED TO RESCUE",255
+	JSR	PLOT_TEXT
+	DB	1,14,11,"ALL THE PRISONERS",&3A,255
+	RTS
+
+WELL_DONE	JSR	PLOT_TEXT
+	DB	2,0,15,"WELL DONE",255
+END_UNP	RTS
+
+PLOT_LOGO	LDA	#>TCHARSET+&500
+	STA	UNPACK_IT+1
+	LDA	#<TCHARSET+&500
+	STA	UNPACK_IT+2
+	LDA	#>SCREEN1+6		; unpack buffer (would be screen
+	STA	MIKE1
+	STA	MIKE2
+	LDA	#<SCREEN1+6
+	STA	MIKE1+1
+	LDA	#<NYBBLE+6
+	STA	MIKE2+1
+	LDY	#0
+UNPACK_IT	LDA	&FFFF		; source data
+	BEQ	FRED		; blank space
+	BPL	STORE_AD
+	CMP	#255
+	BCS	END_UNP
+	AND	#&7F
+	BEQ	BL_SP
+	ADC	#&85
+	NOW
+BL_SP	LDA	#0
+	STA	(MIKE1),Y	
+	LDA	#11
+	STA	(MIKE2),Y
+	INY
+	BNE	FRED
+	INC	MIKE1+1
+	INC	MIKE2+1
+FRED	LDA	#&100-&85
+STORE_AD	CLC
+	ADC	#&85
+	STA	(MIKE1),Y
+	LDA	#11
+	STA	(MIKE2),Y
+	INY
+	BNE	ASR
+	INC	MIKE1+1
+	INC	MIKE2+1
+ASR	INC	UNPACK_IT+1
+	BNE	UNPACK_IT
+	INC	UNPACK_IT+2	
+	JMP	UNPACK_IT
+
+	; do a bonus total count up
+	; prisoners * 500
+	; time * 10
+	; pulse rufle ammo * 10
+	; flame thrower fuel * 10
+	; hand grenade * 10
+	; grenade launcher * 10
+COUNT_BONUSES
+	LDX	#0		; start one
+	STX	XTEMP
+ALL_COUNT	LDA	COUNT_YS,X		; y cord
+	STA	POSIT+1
+	TAY			; for block print
+	LDA	COUNT_UPS,X		; compare value
+	STA	COUNT_COMP+1	
+	STX	XTEMP
+	LDA	TILE_NUMB,X
+	LDX	#0
+	JSR	PLOT_TILE
+	LDX	XTEMP
+	LDA	COUNT_ADDL,X	; add value in BCD
+	STA	MIKE2+1
+	JSR	WHAT_PRINT
+	LDA	MIKE2+1
+	LDX	#7		; poke in multiply amount
+	JSR	NUMBPL
+	LDA	#0
+	STA	BONUS_LO		; add bonus for this one init
+	STA	BONUS_MI
+	STA	BONUS_HI
+	STA	TEMP		; count up value init
+	STA	YTEMP		; used for timer count (high)
+COUNT_UP	LDA	XTEMP
+	CMP	#1		; timer count
+	BEQ	TIMCO
+	LDX	#3
+	LDA	TEMP
+	JSR	DECIMAL_P		; wack in count up number
+	LDA	#"X"
+	STA	POSIT+6
+	JMP	SCORE_P
+TIMCO	LDX	#3
+	LDA	YTEMP
+	JSR	FIRST		; high only
+	LDA	#&3A 		; then a space
+	STA	POSIT+4
+	LDX	#5
+	LDA	TEMP
+	JSR	NUMBPL
+	LDA	#"X"
+	STA	POSIT+7
+SCORE_P	LDX	#12		; start of score value
+	LDA	BONUS_HI		; wack in bonus add
+	JSR	NUMBPL
+	LDA	BONUS_MI
+	JSR	NUMBPL
+	LDA	BONUS_LO
+	JSR	NUMBPL
+	JSR	KILL_ZEROS		; knock out trailing zeros in bonus
+	JSR	PLOT_TEXT
+POSIT	DB	1,19,24,"000X500  0000000",255
+	LDX	XTEMP
+	CPX	#1
+	BEQ	TIMER_COUNT
+COUNT_COMP	LDA	&FF		; counter
+	CMP	TEMP		; same amount
+	BEQ	NO_MORE		; done this do next
+	INC	TEMP		; advance count up
+ADVANCE_ON	JSR	BONUS_ADD		; clock up value
+	LDA	FIRE
+	BNE	COUNT_UP
+	JSR	FIFTY		; tiny delay
+	JMP	COUNT_UP		; keep going
+
+NO_MORE	JSR	NEW_BONUS
+	INX
+	CPX	#6
+	BEQ	FINO
+	JMP	ALL_COUNT
+
+TIMER_COUNT
+	LDA	TIMER_LOW
+	CMP	TEMP
+	BNE	CLICKCLOCK
+	LDA	TIMER_HIGH
+	CMP	YTEMP
+	BEQ	NO_MORE
+CLICKCLOCK	LDA	TEMP
+	CLC
+	SED	
+	ADC	#1
+	STA	TEMP
+	CLD
+	CMP	#&60		; over 59 seconds
+	BCC	STILTE
+	INC	YTEMP		; high
+	LDA	#0		; reset to 0 second
+STILTE	STA	TEMP
+	JMP	ADVANCE_ON
+
+	; at 255 special case for time (what a downer!)
+COUNT_YS	DB	3,6,9,12,15,18
+COUNT_UPS	DB	RESCUED,255,ROUNDS,FLAME_FUEL,HAND_GRENADES,GRENADES
+COUNT_ADDL	DB	&50,&01,&01,&01,&01,&01
+TILE_NUMB	DB	&7F,&7E,&78,&79,&7B,&7A
+
+WHAT_PRINT	CPX	#1
+	BEQ	T1
+	CPX	#4
+	BEQ	T4
+	CPX	#3
+	BEQ	T3
+	CPX	#2
+	BEQ	T2
+	CPX	#5
+	BEQ	T5
+	JSR	PLOT_TEXT
+	DB	1,3,3,"PRISONERS RESCUED",255
+FINO	RTS
+T1	JSR	PLOT_TEXT
+	DB	1,6,3,"TIME REMAINING",255
+	RTS
+T2	JSR	PLOT_TEXT
+	DB	1,9,3,"PULSE RIFLE AMMO",255
+	RTS
+T3	JSR	PLOT_TEXT
+	DB	1,12,3,"FLAME THROWER FUEL",255
+	RTS
+T4	JSR	PLOT_TEXT
+	DB	1,15,3,"HAND GRENADES",255
+	RTS
+T5	JSR	PLOT_TEXT
+	DB	1,18,3,"GRENADE LAUNCHER",255
+	RTS
+
+KILL_ZEROS	LDX	#0
+MORZAPS	LDA	POSIT+12,X
+	CMP	#"0"
+	BNE	END_SUP
+	LDA	#32		; STRIP TOP ZPS
+	STA	POSIT+12,X
+	INX
+	CPX	#6
+	BNE	MORZAPS		; MORE OF THEM
+END_SUP	RTS
+
+DECIMAL_P	STA	MIKE1
+	JSR	DIVID		; divide by 10
+	PHA
+	JSR	DIVID
+	PHA
+	JSR	DIVID
+	JSR	FIRST
+	PLA
+	JSR	FIRST
+	PLA
+	JMP	FIRST
+
+NUMBPL	PHA
+	LSR	A
+	LSR	A
+	LSR	A
+	LSR	A
+	JSR	FIRST
+	PLA
+FIRST	AND	#15
+	CLC
+	ADC	#"0"		; number start
+	STA	POSIT,X
+	INX
+	RTS
+
+NEW_BONUS	LDA	BONUS_LO		; add on to bonus total
+	SED
+	CLC
+	ADC	BONUS_LO+1
+	STA	BONUS_LO+1
+	LDA	BONUS_MI
+	ADC	BONUS_MI+1
+	STA	BONUS_MI+1
+	LDA	BONUS_HI
+	ADC	BONUS_HI+1
+	STA	BONUS_HI+1
+	CLD
+	RTS
+
+	; add to score A lo Y hi in BCD
+BONUS_ADD	LDA	MIKE2+1
+	CLC
+	SED
+	ADC	BONUS_LO
+	STA	BONUS_LO
+	LDA	BONUS_MI
+	ADC	#0
+	STA	BONUS_MI
+	LDA	BONUS_HI
+	ADC	#0
+	STA	BONUS_HI
+	CLD
+	STA	SCOREHI
+	RTS
+
+	
+ADD_SCORE	LDA	SCORELO
+	SED
+	CLC
+	ADC	BONUS_LO+1
+	STA	SCORELO
+	LDA	SCOREMI
+	ADC	BONUS_MI+1
+	STA	SCOREMI
+	LDA	SCOREHI
+	ADC	BONUS_HI+1
+	STA	SCOREHI
+	CLD
+	RTS
+
+BONUS_TOTAL
+	JSR	PLOT_TEXT
+	DB	3,22,0,"DIFFICULTY",255
+	LDX	GAME_MODE		; what diff level
+	LDA	MODE_ADDL,X
+	STA	BONUS_LO
+	LDA	MODE_ADDH,X
+	STA	BONUS_MI
+	LDA	#0
+	STA	BONUS_HI
+	JSR	NEW_BONUS		; add on to total bonus
+	JSR	DIFF_BONUS
+	LDX	#12		; first number
+	LDA	BONUS_HI+1
+	JSR	BYTE
+	LDA	BONUS_MI+1
+	JSR	BYTE
+	LDA	BONUS_LO+1
+	JSR	BYTE
+	JSR	BONUS_ZAP
+	JSR	PLOT_TEXT
+NUMBER1	DB	2,22,24,"BONUS    0000000",255
+	RTS
+
+BONUS_ZAP	LDX	#0
+MOR_ZAPS	LDA	NUMBER1+12,X
+	CMP	#"0"
+	BNE	END_SUP1
+	LDA	#32		; STRIP TOP ZPS
+	STA	NUMBER1+12,X
+	INX
+	CPX	#6
+	BNE	MOR_ZAPS		; MORE OF THEM
+END_SUP1	RTS
+
+	; either 0, 7500, 15000 (last zero not needed)
+MODE_ADDL	DB	0,&50,&00
+MODE_ADDH	DB	0,&07,&15
+
+DIFF_BONUS	CPX	#0
+	BEQ	PISS_EASY
+	CPX	#1
+	BEQ	JUST_NORM
+	; else must be hard
+	JSR	PLOT_TEXT
+	DB	3,22,11,"HARD  15000",255
+	RTS
+JUST_NORM	JSR	PLOT_TEXT
+	DB	3,22,11,"NORMAL 7500",255
+	RTS
+	; nothing to add
+PISS_EASY	JSR	PLOT_TEXT
+	DB	3,22,11,"EASY      0",255
+	RTS
+
+BYTE	PHA
+	LSR	A
+	LSR	A
+	LSR	A
+	LSR	A
+	JSR	FIRST_BIT
+	PLA
+	AND	#15
+FIRST_BIT	CLC
+	ADC	#"0"		; number start
+	STA	NUMBER1,X
+	INX
+	RTS
+
+SYS	EQU	9		; select y start
+
+LEV_MESS	LDA	LIVES
+	ORA	#"0"
+	STA	REMLIVES+9
+	JSR	PLOT_TEXT
+REMLIVES	DB	1,15,17,"TRIES 0",255
+	LDY	LEVEL
+	INY
+	STY	MIKE1
+	JSR	DIVID
+	ORA	#"0"
+	STA	STAGE_NO+10
+	JSR	DIVID
+	ORA	#"0"
+	STA	STAGE_NO+9
+	JSR	PLOT_TEXT
+STAGE_NO	DB	1,7,16,"STAGE 00",255
+	JSR	PLOT_TEXT
+	DB	2,19,16,"GET READY",255
+	LDA	LEV_BYTE
+	BEQ	T_RESCUE		; no aliens
+	CMP	#1
+	BEQ	T_MISSION
+	CMP	#2
+	BEQ	T_MAYHEM
+	JSR	PLOT_TEXT
+	DB	2,11,16,"GUARDIAN",255
+	RTS
+T_MAYHEM	JSR	PLOT_TEXT
+	DB	2,11,17,"MAYHEM",255
+	RTS
+T_MISSION	JSR	PLOT_TEXT
+	DB	2,11,17,"MISSION",255
+	RTS
+T_RESCUE	JSR	PLOT_TEXT
+	DB	2,11,17,"RESCUE",255
+	RTS
+
+GAME_OPTIONS
+	JSR	PLOT_TEXT
+	DB	1,SYS,13,"START",255
+	JSR	PLOT_TEXT
+	DB	1,SYS+2,13,"CONTINUE",255
+	JSR	PLOT_TEXT
+	DB	1,SYS+4,13,"GAME MODE",255
+	LDA	ST_LIVES		; tries
+	CLC
+	ADC	#"0"
+	STA	TR_AM
+	JSR	PLOT_TEXT
+	DB	1,SYS+6,13,"TRIES 0",255
+TR_AM	EQU	*-2
+	LDA	GAME_MODE
+	BEQ	EASY_PE		; 0 easy mode
+	CMP	#1
+	BEQ	NORMAL_MO		; 1 normal mode
+	JSR	PLOT_TEXT		; 2 else must be hard
+	DB	1,SYS+4,23,"HARD  ",255
+	RTS
+NORMAL_MO	JSR	PLOT_TEXT
+	DB	1,SYS+4,23,"NORMAL",255
+	RTS
+EASY_PE	JSR	PLOT_TEXT
+	DB	1,SYS+4,23,"EASY  ",255
+	RTS
+
+	; swap about double height characters from level charset
+	; and storage area (not enougth to hold both at once
+SWAP_CHARS	LDY	#>&B300		; allow 1 line above pannel
+	STY	MIKE1
+	LDA	#<&B300
+	STA	MIKE1+1
+	LDA	#>CHARSET+(48*8)
+	STA	MIKE2
+	LDA	#<CHARSET+(48*8)
+	STA	MIKE2+1
+	LDX	#5		; characters and alien3 logo
+	LDY	#0
+EXCHANGE	LDA	(MIKE1),Y
+	PHA
+	LDA	(MIKE2),Y
+	STA	(MIKE1),Y
+	PLA
+	STA	(MIKE2),Y
+	INY
+	BNE	EXCHANGE
+	INC	MIKE2+1
+	INC	MIKE1+1
+	DEX
+	BNE	EXCHANGE
+	RTS
+
+SELECT_MOVE
+	LDA	UP		; no up pressed no move
+	ORA	LEFT
+	BEQ	FORGET
+	LDA	YTEMP		; top one anyway no move
+	BEQ	FORGET
+	DEC	YTEMP		; up one		
+FORGET	LDA	DOWN		; no down move either
+	ORA	RIGHT
+	BEQ	ICECREAM
+	LDA	YTEMP
+	CMP	TEMP		; max down	
+	BEQ	ICECREAM
+	INC	YTEMP
+ICECREAM	LDA	YTEMP		; any changes in position
+	CMP	XTEMP
+	BEQ	NO_UP		; both same
+	LDY	XTEMP
+	JSR	DELETE_BAR
+	LDY	YTEMP
+	STY	XTEMP
+SELECT_BAR	LDX	#&3B
+	NOW
+DELETE_BAR	LDX	#0		; space out
+	TYA
+	ASL	A		; * 2
+	TAY
+	LDA	SMAPL+SYS,Y		; low of screen memory,starts at 9
+	STA	SCR_MEM+1
+	STA	COL_MEM+1
+	LDA	SMAPH+SYS,Y		; high byte of screen memory
+	STA	SCR_MEM+2
+	SEC
+	SBC	#<(SCREEN1-NYBBLE)	; get nybble memory
+	STA	COL_MEM+2
+	TXA
+	TAY
+	LDX	#12		; x place along screen
+	JSR	SCR_MEM
+	TYA
+	BEQ	SPACEOUT
+	CLC
+	ADC	#43
+SPACEOUT	LDX	#12+40
+SCR_MEM	STA	&FFFF,X		; screen memory
+	LDA	#1		; white bit
+COL_MEM	STA	&FFFF,X		; nybble memory
+NO_UP	RTS
+
+****************************************
+*	CLOCK / PRISONERS LEFT	*
+****************************************
+TIMER	INC	CLOCK		; get counts
+	LDA	CLOCK
+	IF	NTSC
+	CMP	#60
+	ELSE
+	CMP	#50		; one second
+	ENDIF
+	BEQ	NEW_TIME		; change time and display
+STIL	RTS
+
+NEW_TIME	LDA	#0		; reset 1/50 second timer
+	STA	CLOCK
+	LDA	TIMER_LOW
+	SEC
+	SED
+	SBC	#1
+	CLD
+	BCS	STILT
+	LDA	TIMER_HIGH
+	BEQ	STILT		; no count down
+	DEC	TIMER_HIGH
+	LDA	#&59		; reset to 60 second
+STILT	STA	TIMER_LOW
+	LDA	TIMER_HIGH
+	BNE	STIL
+	LDA	TIMER_LOW
+	CMP	#&20
+	BCS	STIL
+	LDA	#18
+	JMP	SETFX
+
+	; Scan Joystick and Keyboard
+JOYGET	LDA	#255
+	STA	CIA1+2
+	LDA	#&DF
+	STA	CIA1+0
+	LDA	CIA1+1
+	CMP	#%11111101
+	BNE	SHIFTLOCK
+	LDA	#1
+	NOW
+SHIFTLOCK	LDA	#0
+	STA	PAUSE
+	LDA	#&7F
+	STA	CIA1+0
+	LDA	CIA1+1
+	STA	KEYBYTE0+1
+	CMP	#&EF
+	BNE	SPACEBAR
+	LDA	#1
+	NOW
+SPACEBAR	LDA	#0
+	STA	SELECT
+
+	IF	CHEAT
+	LDA	#&FE
+	STA	CIA1+0
+	LDA	CIA1+1
+	STA	KEYBYTE0
+	ENDIF
+
+	LDA	#0
+	STA	CIA1+2		; read joystick
+	STA	LEFT
+	STA	RIGHT
+	STA	UP
+	STA	DOWN
+	STA	FIRE
+	LDA	CIA1
+	EOR	#%00011111
+	STA	JOY
+	AND	#%00001111		; use only direction bits
+	STA	MOVE
+	; 7 6 5 4 3 2 1 0
+	; 0 up
+	; 1 down
+	; 2 left
+	; 3 right
+	; 4 fire
+	LDA	JOY
+	LSR	A
+	ROL	UP
+	LSR	A
+	ROL	DOWN
+	LSR	A
+	ROL	LEFT
+	LSR	A
+	ROL	RIGHT
+	LSR	A
+	ROL	FIRE
+	RTS
+

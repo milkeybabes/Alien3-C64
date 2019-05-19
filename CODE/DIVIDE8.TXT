@@ -1,0 +1,33 @@
+	; Divide routine
+	; 16/8
+	; In:
+	; HL-dividee
+	; C-divider
+	; Out:
+	; DE-result
+	
+	LD	DE,0	; Result
+	LD	B,16
+	
+$1	RL	L
+	RL	H
+	RL	E
+	RL	D
+	
+	LD	A,E
+	AND	A
+	SBC	C	; Divisor
+	LD	(STA),A
+	
+	LD	A,D
+	SBC	0 ; HiByte if 16
+	JR	NC,$2
+	
+	LD	D,A
+	LD	A,(STA)
+	LD	E,A
+	
+$2	DJNZ	$1
+	RL	L
+	RL	H
+	RET

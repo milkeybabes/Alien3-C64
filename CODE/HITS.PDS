@@ -1,0 +1,16 @@
+HIT_OBJ	EQU	1
+LADDER_OBJ	EQU	2	; ladder anywhere
+LBOT1_OBJ	EQU	3	; bottom of ladder (non	tunnel part)
+LBOT2_OBJ	EQU	4	; bottom of ladder (tunnel section)
+TOP_LADDER	EQU	12	; top	of ladder in duct
+PICK_OBJ	EQU	5	; pickups
+OFF1_OBJ	EQU	6	; get off ladder	point (non tunnel)
+OFF2_OBJ	EQU	7	; get off ladder	point (in tunnel)
+SLOPEL_OBJ	EQU	8	; slope going diag right to left /
+SLOPER_OBJ	EQU	9	; slope going diag left to right \
+;LIFT_OBJ	EQU	10	; lift	platform
+ENTRANCE	EQU	11	; entrance to tunnel
+DOOR_OBJ	EQU	13	; a door
+PLATL_OBJ	EQU	14	; platform left move ripley
+PLATR_OBJ	EQU	15	; platform right move ripley
+LARVA_OBJ	EQU	16	; larva level 5 only

@@ -1,0 +1,16 @@
+
+LEVEL_DATA	EQU	&F800+&520
+TILE_START	EQU	&8700
+TILE_TL	EQU	TILE_START+&000	 ; char top left
+TILE_TR	EQU	TILE_START+&100	; char top right
+TILE_BL	EQU	TILE_START+&200	; char bottom	left
+TILE_BR	EQU	TILE_START+&300	; char bottom	right
+TCOL_TL	EQU	TILE_START+&400	; col	top left
+TCOL_TR	EQU	TILE_START+&500	; col	top right
+TCOL_BL	EQU	TILE_START+&600	; col	bot left
+TCOL_BR	EQU	TILE_START+&700	; col	bot right
+GMAP_L	EQU	TILE_START+&800	; memory for next y position
+GMAP_H	EQU	TILE_START+&880	; for map high	& low
+TILE_MAP	EQU	TILE_START+&900
+MAP_START	EQU	TILE_START+&980
+
