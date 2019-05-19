@@ -1,0 +1,106 @@
+
+ALIEN 3 TAPE MASTER MAKER
+
+LOAD"CYBERLOAD",8
+RUN
+
+Select E
+
+Use whatever You want for the name, 'ALIEN3' should be a good choice.
+N
+N
+Y
+N
+N
+TLOADER
+When asked to enter load address use 2048
+Y
+N
+Y
+2048 for exec address
+Y
+
+
+When done and are back to cyberload menu
+
+Select F for multi part save
+
+TP
+return (just press return when asked for load addRess. (same for ALL other files
+Y
+TQ
+return
+Y
+TC
+return
+Y
+TD
+return
+N
+
+Now save all off to tape. (takes a little while)
+
+Now You can turn over the disk to side two ready for multi part files saves!
+This takes yonks!. ( Coffee at ready !)
+
+Select F Again
+
+use follow files, ( note there is a limit to how many you can enter in one go
+do a few then a few more. and so on until all entered.
+
+no need to enter load address as this is taken from file on disk and is at
+place where it needs to go ok.
+
+LA
+GA
+B1
+
+LB
+GB
+
+LC
+GC
+
+LD
+GD
+B2
+
+LE
+GE
+
+LF
+GF
+
+LG
+GG
+
+LH
+GH
+B4
+
+LI
+GI
+
+LJ
+GJ
+
+LK
+GK
+
+LL
+GL
+B3
+
+LM
+GM
+
+LN
+GN
+
+LO
+GO
+
+LP
+GP
+B7
+
