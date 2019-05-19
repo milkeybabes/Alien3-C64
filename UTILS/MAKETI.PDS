@@ -1,0 +1,88 @@
+
+DATA	EQU	&F0
+STORE	EQU	&F2
+HOLD	EQU	&F4
+XSIZE	EQU	&F6
+YSIZE	EQU	&F7
+
+	ORG	&1000
+
+	; make screen data to 8 by 8 tiles so can look at in block editor
+TO_TILES	LDA	#>LOGO_MAP1		; set screen data mem
+	STA	DATA
+	LDA	#<LOGO_MAP1
+	STA	DATA+1
+	LDA	#>&4000
+	STA	STORE
+	LDA	#<&4000
+	STA	STORE+1
+	LDA	#3		; 3 tiles down screen
+	STA	YSIZE
+
+YLOOP	LDA	#5
+	STA	XSIZE		; 5 tiles across screen
+
+XLOOP	LDA	DATA
+	STA	HOLD
+	LDA	DATA+1
+	STA	HOLD+1
+
+	LDX	#8
+ALLTILE	LDY	#7
+LINE	LDA	(HOLD),Y
+	STA	(STORE),Y
+	DEY
+	BPL	LINE
+
+	LDA	STORE
+	CLC
+	ADC	#8
+	STA	STORE
+	LDA	STORE+1
+	ADC	#0
+	STA	STORE+1
+
+	LDA	HOLD
+	CLC
+	ADC	#40		; down one line
+	STA	HOLD
+	LDA	HOLD+1
+	ADC	#0
+	STA	HOLD+1
+	DEX
+	BNE	ALLTILE
+	
+	LDA	DATA		; across one tile width
+	CLC
+	ADC	#8
+	STA	DATA
+	LDA	DATA+1
+	ADC	#0
+	STA	DATA+1
+
+	DEC	XSIZE
+	BNE	XLOOP
+
+	LDA	DATA		; next set of tiles
+	CLC
+	ADC	#>7*40
+	STA	DATA
+	LDA	DATA+1
+	ADC	#<7*40
+	STA	DATA+1
+
+	DEC	YSIZE
+	BNE	YLOOP
+
+	INC	&D020
+	JMP	4
+
+LOGO_MAP1
+	INCBIN	ALIEN3.MAP
+	DS	1024,0
+
+
+	SEND	COMPUTER1
+	END	TO_TILES
+	
+

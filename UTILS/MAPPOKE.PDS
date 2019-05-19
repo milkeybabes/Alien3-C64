@@ -1,0 +1,75 @@
+	
+BL_SPR	EQU	(&B780-&8000)/64	; blank sprite after pannel
+LEVEL_DATA	EQU	&8600-&90-&40-37
+TILE_MAP	EQU	LEVEL_DATA+&90+&40+37	; pickup data
+TILE_START	EQU	TILE_MAP+&000
+TILE_TL	EQU	TILE_MAP+&100 	; char top left
+TILE_TR	EQU	TILE_MAP+&200	; char top right
+TILE_BL	EQU	TILE_MAP+&300	; char bottom left
+TILE_BR	EQU	TILE_MAP+&400	; char bottom right
+TCOL_TL	EQU	TILE_MAP+&500	; col top left
+TCOL_TR	EQU	TILE_MAP+&600	; col top right
+TCOL_BL	EQU	TILE_MAP+&700	; col bot left
+TCOL_BR	EQU	TILE_MAP+&800	; col bot right
+GMAP_L	EQU	TILE_MAP+&900	; memory for next y position
+GMAP_H	EQU	TILE_MAP+&980	; for map high & low
+MAP_START	EQU	TILE_MAP+&A00
+
+	ORG	TILE_MAP
+	DS	256,1
+
+	INCBIN	..\LEVEL\DAT\1A.DAT
+MIKE	INCBIN	..\LEVEL\MEM\1A.MEM
+MMIKEY	INCBIN	..\LEVEL\TUNNELS\1A.MAP
+SIZE	EQU	*-MMIKEY
+	ORG	&2000
+
+MAP_MEM0	EQU	&F8	
+
+	; setup pickup items to map
+START	LDX	#1		; 
+DO_ALLTHEM	LDA	TUNNEL_TAB_Y,X		; new position
+	CMP	#255		; last on in list
+	BEQ	ENDLIST
+	TAY
+	LDA	GMAP_L,Y
+	STA	MAP_MEM0		; low
+	LDA	GMAP_H,Y
+	STA	MAP_MEM0+1		; high
+	LDA	TUNNEL_TAB_X,X		; x position in line
+	TAY
+	LDA	TUNNEL_CONT,X	; place item there
+	CLC
+	ADC	#247		; start of data to tile editor
+	STA	(MAP_MEM0),Y	; save to map
+	INX			; next on list
+	JMP	DO_ALLTHEM
+ENDLIST	INC	&D020
+	JMP	4
+
+	; Control byte for tile position
+	; do action if as data stands, if 0 then has been used	
+	; tunnel control (48 entries)
+TUNNEL_CONT	
+	DB	0,1,3,4,1,8,5,2,1,3,4,1,1,3,5,5
+	DB	2,2,2,2,6,6,1,3,4,1,1,3,4,1,1,3
+	DB	5,2,2,6,7,1,3,2,6,1,3
+	DB	0,0,0
+
+TUNNEL_TAB_X
+	DB	00,73,74,76,77,102,75,75,82,83,85,86,98,99,84,100
+	DB	84,100,75,84,75,84,73,74,76,77,82,83,85,86,90,91
+	DB	92,92,92,92,67,90,91,100,100,98,99
+	DB	255,0,0
+
+TUNNEL_TAB_Y
+	DB	00,13,13,13,13,13,15,16,19,19,19,19,19,19,21,21
+	DB	22,22,27,27,28,28,29,29,29,29,29,29,29,29,29,29
+	DB	31,32,35,36,37,37,37,38,39,40,40
+	DB	255,0,0		; signify last in table
+
+
+	SEND	COMPUTER1
+	END	START
+
+

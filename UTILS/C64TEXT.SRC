@@ -1,0 +1,127 @@
+
+		DC.B 	0,4,'AS RIPLEY LEAVES',13
+		DC.B	0,4,'        FURY 161',13
+		DC.B	0,4,'  SHE TURNS BACK',13
+		DC.B	0,4,'   ONE LAST TIME',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	1,3,'  ',34,'IT IS DONE..',35,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,'       WELL DONE',13
+		DC.B	0,4,'    YOU HAVE RID',13 
+		DC.B	0,4,'      THE PLANET',13
+		DC.B	0,4,'    OF THE ALIEN',13
+		DC.B	0,4,'          MENACE',13
+		DC.B	0,4,'         AND WON',13 
+		DC.B	0,4,'        THE GAME',13
+		DC.B 	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'      DESIGN AND',13
+		DC.B	0,3,'   PRODUCTION BY',13
+		DC.B	1,4,'           PROBE',13
+		DC.B	1,4,'        SOFTWARE',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'        PRODUCER',13
+		DC.B	1,4,'       JOE BONAR',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'      PROGRAMMER',13
+		DC.B	1,4,'  MICHAEL ARCHER',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'        GRAPHICS',13
+		DC.B	1,4,'        LEE AMES',13
+		DC.B	1,4,'     LLOYD BAKER',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'         MAPPING',13
+		DC.B    0,3,'        LEE AMES',13
+                DC.B    0,3,'  MICHAEL ARCHER',13
+                DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'           MUSIC',13
+		DC.B	0,3,'             AND',13
+		DC.B	0,3,'   SOUND EFFECTS',13
+		DC.B	1,4,'     ANDY RODGER',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'          DESIGN',13
+		DC.B	0,3,'         SUPPORT',13
+		DC.B	1,4,' FERGUS MCGOVERN',13
+		DC.B	1,4,'   TONY BECKWITH',13
+		DC.B	1,4,'  KEITH BURKHILL',13
+		DC.B	1,4,'       TIM ROUND',13
+		DC.B	1,4,'  MICHAEL ARCHER',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,3,'         QUALITY',13
+		DC.B	0,3,'       ASSURANCE',13
+		DC.B	0,3,'       IN THE UK',13
+		DC.B	1,4,'    ADRIAN CURRY',13
+		DC.B	1,4,'     SIMON BLAND',13	
+		DC.B    1,4,'   UK TEST DEPT.',13 
+                DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	1,4,'          PLEASE',13
+		DC.B	1,4,'            PLAY',13
+		DC.B	1,4,'           AGAIN',13
+		DC.B 	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	1,4,'             THE',13
+		DC.B	1,4,'             END',13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		DC.B	0,4,13
+		dc.b	-1
+

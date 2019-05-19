@@ -1,0 +1,70 @@
+
+		ORG	&1000
+	
+TOP_LEFT		DS	256,0
+TOP_RIGHT		DS	256,0
+BOTTOM_LEFT	DS	256,0
+BOTTOM_RIGHT	DS	256,0
+TCOL_TL		DS	256,0
+TCOL_TR		DS	256,0
+TCOL_BL		DS	256,0
+TCOL_BR		DS	256,0
+
+	ORG	&2000
+BLOCKS	INCBIN	..\BLK\5.BLK
+COLOUR	INCBIN	..\COL\5.COL
+
+DATA	EQU	&F0
+
+	ORG	&4000
+		
+START	LDA	#<BLOCKS		; high byte
+	STA	DATA+1
+	LDX	#>BLOCKS		; low byte
+	STX	DATA+0
+	LDY	#0
+EXTRACT	LDA	(DATA),Y		; first in block
+	STA	TOP_LEFT,X
+	INY
+	LDA	(DATA),Y		; second in block
+	STA	TOP_RIGHT,X
+	INY
+	LDA	(DATA),Y		; third in block
+	STA	BOTTOM_LEFT,X
+	INY
+	LDA	(DATA),Y		; fourth in block
+	STA	BOTTOM_RIGHT,X
+	INY			; next block
+	BNE	DNA
+	INC	DATA+1
+DNA	INX
+	BNE	EXTRACT
+	; X=0
+GET_COLOUR	LDY	TOP_LEFT,X		; top left character
+	LDA	COLOUR,Y		; colour table
+	STA	TCOL_TL,X		; top left colour	
+	STA	TCOL_TL+128,X	; same colour for tiles 128-255
+	LDY	TOP_RIGHT,X		; top right character
+	LDA	COLOUR,Y		; colour table
+	STA	TCOL_TR,X		; top right colour	
+	STA	TCOL_TR+128,X
+	LDY	BOTTOM_LEFT,X	; bottom left character
+	LDA	COLOUR,Y		; colour table
+	STA	TCOL_BL,X		; bottom left colour
+	STA	TCOL_BL+128,X
+	LDY	BOTTOM_RIGHT,X	; bottom right character
+	LDA	COLOUR,Y		; colour table
+	STA	TCOL_BR,X		; bottom right colour	
+	STA	TCOL_BR+128,X
+	INX
+	CPX	#128
+	BNE	GET_COLOUR
+	INC	&D020
+	JMP	4		; back to pds
+
+
+	SEND	COMPUTER1
+	END	START
+
+
+

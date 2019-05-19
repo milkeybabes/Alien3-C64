@@ -1,0 +1,104 @@
+
+
+	ORG	&1000
+CHARSET1	INCBIN	LOGO0.BIN
+	ORG	&1800
+COLOUR_MEM	INCBIN	LOGO4.BIN
+	ORG	&4000
+SCREEN_DATA	INCBIN	ENDSEQ.DAT
+	ORG	&2000
+MYCHARS	DS	2048,0	; blank this out
+
+NEW_COL_MEM	DS	256,0
+
+
+CURRENT	EQU	&F0
+TEMP	EQU	&F1
+SOURCE	EQU	&F2
+DEST	EQU	&F4
+
+	ORG	&C000
+
+EXIT	INC	&D020
+	JMP	4
+
+CHANGE	LDA	#0
+	STA	CURRENT		; dest of first character
+	LDX	#0
+GET_IT	LDA	CHANGE_TAB,X
+	CMP	#255
+	BEQ	EXIT
+	; first copy source for charset to dest place in same charset
+	LDA	#<CHARSET1/8
+	STA	SOURCE+1
+	LDA	#<MYCHARS/8
+	STA	DEST+1
+
+	LDA	CHANGE_TAB,X
+	ASL	A
+	ROL	SOURCE+1
+	ASL	A
+	ROL	SOURCE+1
+	ASL	A
+	ROL	SOURCE+1
+	STA	SOURCE
+	
+	LDA	CURRENT
+	ASL	A
+	ROL	DEST+1
+	ASL	A
+	ROL	DEST+1
+	ASL	A
+	ROL	DEST+1
+	STA	DEST
+
+	LDY	#7
+!COPY	LDA	(SOURCE),Y
+	STA	(DEST),Y
+	DEY
+	BPL	!COPY
+
+	LDA	CHANGE_TAB,X
+	TAY
+	LDA	COLOUR_MEM,Y	; get colour byte
+	LDY	CURRENT
+	STA	NEW_COL_MEM,Y	; save to new place
+
+	; now change map bytes
+	LDA	#4		; 4 pages to change
+	STA	TEMP
+	LDY	#0
+	STY	SOURCE
+	LDA	#<SCREEN_DATA	; start on page boundary
+	STA	SOURCE+1
+DO_IT_ALL	LDA	(SOURCE),Y		; get screen byte
+	CMP	CHANGE_TAB,X	; same as swap
+	BNE	ADV
+	LDA	CURRENT
+	STA	(SOURCE),Y
+ADV	INY
+	BNE	DO_IT_ALL	
+	INC	SOURCE+1
+	DEC	TEMP
+	BNE	DO_IT_ALL
+
+	INC	CURRENT		; advance on
+	INX
+	BNE	GET_IT
+	INC	&D020
+	JMP	4
+	
+CHANGE_TAB
+	DB	&00,&01,&02,&03,&04,&05,&06,&07,&08,&09,&0A,&0C,&0D,&0E,&0F,&11
+	DB	&12,&13,&14,&15,&16,&17,&18,&19,&1A,&5B,&5C,&5D,&5E,&5F,&60,&7B
+	DB	&7C,&7D,&7E,&7F,&80,&81,&82,&83,&84,&85,&86,&87,&88,&89,&8A,&8B
+	DB	&8C,&8D,&8E,&8F,&90,&91,&92,&93,&94,&95,&96,&97,&98,&99,&9A,&9B
+	DB	&9C,&9D,&9E,&9F,&A0,&A1,&A2,&A3,&A4,&A5,&A6,&A7,&A8,&A9,&AA,&AB
+	DB	&AC,&AD,&AE,&AF,&B0
+
+	DB	255	; end of list
+
+	SEND	COMPUTER1
+	END	CHANGE
+
+
