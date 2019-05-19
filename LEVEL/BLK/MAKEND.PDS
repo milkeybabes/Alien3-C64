@@ -1,0 +1,104 @@
+
+START_TI	EQU	&1F	; append tile number
+
+	ORG	&1000
+TILE_DATA	INCBIN	ENDSEQ.BLK
+
+CURRENT	EQU	&F0
+TEMP	EQU	&F1
+SOURCE	EQU	&F2
+DEST	EQU	&F4
+
+	ORG	&C000
+
+CHANGE	LDA	#<((START_TI*4)+TILE_DATA)
+	STA	DEST+1
+	LDA	#>((START_TI*4)+TILE_DATA)
+	STA	DEST+0	
+	LDA	#<(START_TEXT)
+	STA	SOURCE+1
+	LDA	#>(START_TEXT)
+	STA	SOURCE+0	
+ALL_DO	LDY	#0		; read byte
+	LDA	(SOURCE),Y		; read first
+	CMP	#255
+	BEQ	DONE_IT
+	TAX
+	INY
+	LDA	(SOURCE),Y
+	STA	CURRENT
+	CMP	#32
+	BNE	SAVE_THIS
+	CPX	#32		; space aswell
+	BEQ	NEXT_READ
+SAVE_THIS	TXA
+	JSR	CONV
+	LDY	#0
+	STA	(DEST),Y
+	LDA	CURRENT
+	JSR	CONV
+	INY
+	STA	(DEST),Y
+	LDA	DEST
+	CLC
+	ADC	#4
+	STA	DEST
+	LDA	DEST+1
+	ADC	#0
+	STA	DEST+1
+NEXT_READ	LDA	SOURCE
+	CLC
+	ADC	#2
+	STA	SOURCE
+	LDA	SOURCE+1
+	ADC	#0
+	STA	SOURCE+1
+	JMP	ALL_DO
+
+DONE_IT	INC	&D020
+	JMP	4
+
+CONV	CMP	#32		; is a space
+	BEQ	ZER
+	CLC
+	ADC	#&5F-&41
+	RTS
+ZER	LDA	#0
+	RTS
+	
+START_TEXT
+                DB    "AS RIPLEY LEAVES"
+                DB    "        FURY 161"
+                DB    "  SHE TURNS BACK"
+                DB    "   ONE LAST TIME"
+                DB    "       WELL DONE"
+                DB    "    YOU HAVE RID"
+                DB    "      THE PLANET"
+                DB    "    OF THE ALIEN"
+                DB    "          MENACE"
+                DB    "         AND WON"
+                DB    "        THE GAME"
+                DB    "      DESIGN AND"
+                DB    "   PRODUCTION BY"
+                DB    "        PRODUCER"
+                DB    "      PROGRAMMER"
+                DB    "        GRAPHICS"
+                DB    "         MAPPING"
+                DB    "        LEE AMES"
+                DB    "  MICHAEL ARCHER"
+                DB    "           MUSIC"
+                DB    "             AND"
+                DB    "   SOUND EFFECTS"
+                DB    "          DESIGN"
+                DB    "         SUPPORT"
+                DB    "         QUALITY"
+                DB    "       ASSURANCE"
+                DB    "       IN THE UK"
+LE
+	DB	-1
+
+
+	SEND	COMPUTER1
+	END	CHANGE
+
+
